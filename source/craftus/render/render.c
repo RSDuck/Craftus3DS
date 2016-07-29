@@ -193,9 +193,6 @@ static void renderWorld(Player* player) {
 void Render(Player* player) {
 	polygonizeWorld(player->world);
 
-	// C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-	// C3D_FrameDrawOn(target);
-
 	C3D_RenderBufBind(&renderBufLeft);
 
 	float iod = osGet3DSliderState() / 3.f;
@@ -205,7 +202,10 @@ void Render(Player* player) {
 
 	renderWorld(player);
 
+	printf("CMDBuf Usage: L: %f", C3D_GetCmdBufUsage());
+
 	C3D_Flush();
+
 	C3D_RenderBufTransferAsync(&renderBufLeft, (u32*)gfxGetFramebuffer(GFX_TOP, GFX_LEFT, NULL, NULL), DISPLAY_TRANSFER_FLAGS);
 
 	if (iod > 0.f) {
@@ -216,6 +216,8 @@ void Render(Player* player) {
 
 		renderWorld(player);
 
+		printf("R: %f\n", C3D_GetCmdBufUsage());
+
 		C3D_Flush();
 
 		gspWaitForPPF();
@@ -225,6 +227,4 @@ void Render(Player* player) {
 	C3D_RenderBufClear(&renderBufLeft);
 
 	C3D_VideoSync();
-
-	// C3D_FrameEnd(0);
 }

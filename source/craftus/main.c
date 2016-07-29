@@ -109,7 +109,7 @@ int main(int argc, char* argv[]) {
 
 		gfxFlushBuffers();
 
-		consoleSelect(&consoleEvent);
+		// consoleSelect(&consoleEvent);
 
 		Render(player);
 
