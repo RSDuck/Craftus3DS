@@ -5,7 +5,7 @@
 .fvec modelView[4]
 
 ; Constants
-.constf myconst(0.0, 1.0, 2.0, 0.1)
+.constf myconst(0.0, 1.0, 0.00392156862, 0.001)
 .alias  zeros myconst.xxxx ; Vector full of zeros
 .alias  ones  myconst.yyyy ; Vector full of ones
 
@@ -34,8 +34,10 @@
 	dp4 r2.w, projection[3], r1
 
 	mov outpos, r2
+
 	mov outuv, inuv
-	mov outclr, inclr
+
+	mul outclr, myconst.zzzy, inclr
 
 	; We're finished
 	end

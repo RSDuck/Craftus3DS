@@ -29,7 +29,8 @@ static Camera camera;
 
 static C3D_Tex texture_map;
 
-static C3D_RenderTarget *target, *rightTarget;
+static C3D_RenderBuf renderBufLeft, renderBufRight;
+// static C3D_RenderTarget *target, *rightTarget;
 
 /*
 Both of these(morton_interleave and get_morton_offset) seem to be more or less triple stolen from here: https://fgiesen.wordpress.com/2009/12/13/decoding-morton-codes/
@@ -55,14 +56,23 @@ void Render_Init() {
 
 	C3D_Init(C3D_DEFAULT_CMDBUF_SIZE * 2);
 
-	// Initialize the render target
+	/* Initialize the render target
 	target = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
 	C3D_RenderTargetSetClear(target, C3D_CLEAR_ALL, 0x68B0D8FF, 0);
 	C3D_RenderTargetSetOutput(target, GFX_TOP, GFX_LEFT, DISPLAY_TRANSFER_FLAGS);
 
 	rightTarget = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
 	C3D_RenderTargetSetClear(rightTarget, C3D_CLEAR_ALL, 0x68B0D8FF, 0);
-	C3D_RenderTargetSetOutput(rightTarget, GFX_TOP, GFX_RIGHT, DISPLAY_TRANSFER_FLAGS);
+	C3D_RenderTargetSetOutput(rightTarget, GFX_TOP, GFX_RIGHT, DISPLAY_TRANSFER_FLAGS);*/
+
+	C3D_RenderBufInit(&renderBufLeft, 240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
+	renderBufLeft.clearColor = 0x68B0D8FF;
+	C3D_RenderBufClear(&renderBufLeft);
+	C3D_RenderBufBind(&renderBufLeft);
+
+	C3D_RenderBufInit(&renderBufRight, 240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
+	renderBufRight.clearColor = 0x68B0D8FF;
+	C3D_RenderBufClear(&renderBufRight);
 
 	world_dvlb = DVLB_ParseFile((u32*)world_shbin, world_shbin_size);
 	shaderProgramInit(&world_shader);
@@ -76,7 +86,7 @@ void Render_Init() {
 	AttrInfo_Init(attrInfo);
 	AttrInfo_AddLoader(attrInfo, 0, GPU_FLOAT, 3);
 	AttrInfo_AddLoader(attrInfo, 1, GPU_FLOAT, 2);
-	AttrInfo_AddLoader(attrInfo, 2, GPU_FLOAT, 3);
+	AttrInfo_AddLoader(attrInfo, 2, GPU_UNSIGNED_BYTE, 4);
 
 	{
 		int w, h, fmt;
@@ -109,6 +119,8 @@ void Render_Init() {
 	C3D_TexEnvSrc(env, C3D_Both, GPU_TEXTURE0, GPU_PRIMARY_COLOR, 0);
 	C3D_TexEnvOp(env, C3D_Both, 0, 0, 0);
 	C3D_TexEnvFunc(env, C3D_Both, GPU_MODULATE);
+
+	C3D_CullFace(GPU_CULL_BACK_CCW);
 
 	Camera_Init(&camera);
 }
@@ -146,18 +158,29 @@ static void renderWorld(Player* player) {
 	for (int x = 0; x < CACHE_SIZE; x++) {
 		for (int z = 0; z < CACHE_SIZE; z++) {
 			Chunk* c = cache->cache[x][z];
-			if (Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, c->z * CHUNK_DEPTH, 0.f, c->x * CHUNK_WIDTH}, (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH})) {
+			float chunkX = c->x * CHUNK_WIDTH, chunkZ = c->z * CHUNK_DEPTH;
+			if (Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, 0.f, chunkX}, (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH})) {
 				Mtx_Identity(&modelMtx);
-				Mtx_Translate(&modelMtx, 0.5f + (c->x * CHUNK_WIDTH), 0.5f, 0.5f + (c->z * CHUNK_DEPTH));
+				Mtx_Translate(&modelMtx, 0.5f + chunkX, 0.5f, 0.5f + chunkZ);
 
 				Mtx_Multiply(&modelView, &camera.view, &modelMtx);
 
 				C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocModelView, &modelView);
 
+				int passed = 0;
+
 				C3D_BufInfo* bufInfo = C3D_GetBufInfo();
 				BufInfo_Init(bufInfo);
 				for (int i = 0; i < CHUNK_HEIGHT / CHUNK_CLUSTER_HEIGHT; i++)
-					if (c->data[i].vbo) BufInfo_Add(bufInfo, c->data[0].vbo, sizeof(world_vertex), 3, 0x210);
+					if (c->data[i].vbo) {
+						if (Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, c->data[i].y * CHUNK_CLUSTER_HEIGHT, chunkX},
+									 (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_CLUSTER_HEIGHT, CHUNK_WIDTH}))
+							BufInfo_Add(bufInfo, c->data[0].vbo, sizeof(world_vertex), 3, 0x210);
+						else if (passed)
+							break;
+						else
+							passed = 1;
+					}
 
 				if (bufInfo->bufCount) C3D_DrawArrays(GPU_TRIANGLES, 0, c->vertexCount);
 
@@ -170,8 +193,10 @@ static void renderWorld(Player* player) {
 void Render(Player* player) {
 	polygonizeWorld(player->world);
 
-	C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-	C3D_FrameDrawOn(target);
+	// C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+	// C3D_FrameDrawOn(target);
+
+	C3D_RenderBufBind(&renderBufLeft);
 
 	float iod = osGet3DSliderState() / 3.f;
 
@@ -180,18 +205,26 @@ void Render(Player* player) {
 
 	renderWorld(player);
 
+	C3D_Flush();
+	C3D_RenderBufTransferAsync(&renderBufLeft, (u32*)gfxGetFramebuffer(GFX_TOP, GFX_LEFT, NULL, NULL), DISPLAY_TRANSFER_FLAGS);
+
 	if (iod > 0.f) {
-		C3D_FrameDrawOn(rightTarget);
+		C3D_RenderBufBind(&renderBufRight);
 
 		Camera_Update(&camera, player, iod);
 		C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocProjection, &camera.projection);
 
 		renderWorld(player);
+
+		C3D_Flush();
+
+		gspWaitForPPF();
+		C3D_RenderBufTransfer(&renderBufRight, (u32*)gfxGetFramebuffer(GFX_TOP, GFX_RIGHT, NULL, NULL), DISPLAY_TRANSFER_FLAGS);
+		C3D_RenderBufClear(&renderBufRight);
 	}
+	C3D_RenderBufClear(&renderBufLeft);
 
-	extern u32 __ctru_linear_heap;
-	extern u32 __ctru_linear_heap_size;
-	GX_FlushCacheRegions((u32*)__ctru_linear_heap, __ctru_linear_heap_size, NULL, 0, NULL, 0);
+	C3D_VideoSync();
 
-	C3D_FrameEnd(0);
+	// C3D_FrameEnd(0);
 }

@@ -7,63 +7,63 @@
 static const world_vertex cube_sides_lut[] = {
     // First face (PZ)
     // First triangle
-    {{-0.5f, -0.5f, +0.5f}, {0.0f, 0.0f}, {1.0f, 1.0f, +1.0f}},
-    {{+0.5f, -0.5f, +0.5f}, {1.0f, 0.0f}, {1.0f, 1.0f, +1.0f}},
-    {{+0.5f, +0.5f, +0.5f}, {1.0f, 1.0f}, {1.0f, 1.0f, +1.0f}},
+    {{-0.5f, -0.5f, +0.5f}, {0.0f, 0.0f}, {255, 255, 255, 255}},
+    {{+0.5f, -0.5f, +0.5f}, {1.0f, 0.0f}, {255, 255, 255, 255}},
+    {{+0.5f, +0.5f, +0.5f}, {1.0f, 1.0f}, {255, 255, 255, 255}},
     // Second triangle
-    {{+0.5f, +0.5f, +0.5f}, {1.0f, 1.0f}, {1.0f, 1.0f, +1.0f}},
-    {{-0.5f, +0.5f, +0.5f}, {0.0f, 1.0f}, {1.0f, 1.0f, +1.0f}},
-    {{-0.5f, -0.5f, +0.5f}, {0.0f, 0.0f}, {1.0f, 1.0f, +1.0f}},
+    {{+0.5f, +0.5f, +0.5f}, {1.0f, 1.0f}, {255, 255, 255, 255}},
+    {{-0.5f, +0.5f, +0.5f}, {0.0f, 1.0f}, {255, 255, 255, 255}},
+    {{-0.5f, -0.5f, +0.5f}, {0.0f, 0.0f}, {255, 255, 255, 255}},
 
     // Second face (MZ)
     // First triangle
-    {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}},
-    {{-0.5f, +0.5f, -0.5f}, {1.0f, 1.0f}, {1.0f, 1.0f, 1.0f}},
-    {{+0.5f, +0.5f, -0.5f}, {0.0f, 1.0f}, {1.0f, 1.0f, 1.0f}},
+    {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}, {255, 255, 255, 255}},
+    {{-0.5f, +0.5f, -0.5f}, {1.0f, 1.0f}, {255, 255, 255, 255}},
+    {{+0.5f, +0.5f, -0.5f}, {0.0f, 1.0f}, {255, 255, 255, 255}},
     // Second triangle
-    {{+0.5f, +0.5f, -0.5f}, {0.0f, 1.0f}, {1.0f, 1.0f, 1.0f}},
-    {{+0.5f, -0.5f, -0.5f}, {0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}},
-    {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}},
+    {{+0.5f, +0.5f, -0.5f}, {0.0f, 1.0f}, {255, 255, 255, 255}},
+    {{+0.5f, -0.5f, -0.5f}, {0.0f, 0.0f}, {255, 255, 255, 255}},
+    {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}, {255, 255, 255, 255}},
 
     // Third face (PX)
     // First triangle
-    {{+0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}},
-    {{+0.5f, +0.5f, -0.5f}, {1.0f, 1.0f}, {1.0f, 1.0f, 1.0f}},
-    {{+0.5f, +0.5f, +0.5f}, {0.0f, 1.0f}, {1.0f, 1.0f, 1.0f}},
+    {{+0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}, {255, 255, 255, 255}},
+    {{+0.5f, +0.5f, -0.5f}, {1.0f, 1.0f}, {255, 255, 255, 255}},
+    {{+0.5f, +0.5f, +0.5f}, {0.0f, 1.0f}, {255, 255, 255, 255}},
     // Second triangle
-    {{+0.5f, +0.5f, +0.5f}, {0.0f, 1.0f}, {1.0f, 1.0f, 1.0f}},
-    {{+0.5f, -0.5f, +0.5f}, {0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}},
-    {{+0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}},
+    {{+0.5f, +0.5f, +0.5f}, {0.0f, 1.0f}, {255, 255, 255, 255}},
+    {{+0.5f, -0.5f, +0.5f}, {0.0f, 0.0f}, {255, 255, 255, 255}},
+    {{+0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}, {255, 255, 255, 255}},
 
     // Fourth face (MX)
     // First triangle
-    {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}},
-    {{-0.5f, -0.5f, +0.5f}, {1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}},
-    {{-0.5f, +0.5f, +0.5f}, {1.0f, 1.0f}, {1.0f, 1.0f, 1.0f}},
+    {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f}, {255, 255, 255, 255}},
+    {{-0.5f, -0.5f, +0.5f}, {1.0f, 0.0f}, {255, 255, 255, 255}},
+    {{-0.5f, +0.5f, +0.5f}, {1.0f, 1.0f}, {255, 255, 255, 255}},
     // Second triangle
-    {{-0.5f, +0.5f, +0.5f}, {1.0f, 1.0f}, {1.0f, 1.0f, 1.0f}},
-    {{-0.5f, +0.5f, -0.5f}, {0.0f, 1.0f}, {1.0f, 1.0f, 1.0f}},
-    {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}},
+    {{-0.5f, +0.5f, +0.5f}, {1.0f, 1.0f}, {255, 255, 255, 255}},
+    {{-0.5f, +0.5f, -0.5f}, {0.0f, 1.0f}, {255, 255, 255, 255}},
+    {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f}, {255, 255, 255, 255}},
 
     // Fifth face (PY)
     // First triangle
-    {{-0.5f, +0.5f, -0.5f}, {0.0f, 1.0f}, {1.0f, 1.0f, 1.0f}},
-    {{-0.5f, +0.5f, +0.5f}, {0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}},
-    {{+0.5f, +0.5f, +0.5f}, {1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}},
+    {{-0.5f, +0.5f, -0.5f}, {0.0f, 1.0f}, {255, 255, 255, 255}},
+    {{-0.5f, +0.5f, +0.5f}, {0.0f, 0.0f}, {255, 255, 255, 255}},
+    {{+0.5f, +0.5f, +0.5f}, {1.0f, 0.0f}, {255, 255, 255, 255}},
     // Second triangle
-    {{+0.5f, +0.5f, +0.5f}, {1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}},
-    {{+0.5f, +0.5f, -0.5f}, {1.0f, 1.0f}, {1.0f, 1.0f, 1.0f}},
-    {{-0.5f, +0.5f, -0.5f}, {0.0f, 1.0f}, {1.0f, 1.0f, 1.0f}},
+    {{+0.5f, +0.5f, +0.5f}, {1.0f, 0.0f}, {255, 255, 255, 255}},
+    {{+0.5f, +0.5f, -0.5f}, {1.0f, 1.0f}, {255, 255, 255, 255}},
+    {{-0.5f, +0.5f, -0.5f}, {0.0f, 1.0f}, {255, 255, 255, 255}},
 
     // Sixth face (MY)
     // First triangle
-    {{-0.5f, -0.5f, -0.5f}, {0.0f, 1.0f}, {1.0f, 1.0f, 1.0f}},
-    {{+0.5f, -0.5f, -0.5f}, {1.0f, 1.0f}, {1.0f, 1.0f, 1.0f}},
-    {{+0.5f, -0.5f, +0.5f}, {1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}},
+    {{-0.5f, -0.5f, -0.5f}, {0.0f, 1.0f}, {255, 255, 255, 255}},
+    {{+0.5f, -0.5f, -0.5f}, {1.0f, 1.0f}, {255, 255, 255, 255}},
+    {{+0.5f, -0.5f, +0.5f}, {1.0f, 0.0f}, {255, 255, 255, 255}},
     // Second triangle
-    {{+0.5f, -0.5f, +0.5f}, {1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}},
-    {{-0.5f, -0.5f, +0.5f}, {0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}},
-    {{-0.5f, -0.5f, -0.5f}, {0.0f, 1.0f}, {1.0f, 1.0f, 1.0f}},
+    {{+0.5f, -0.5f, +0.5f}, {1.0f, 0.0f}, {255, 255, 255, 255}},
+    {{-0.5f, -0.5f, +0.5f}, {0.0f, 0.0f}, {255, 255, 255, 255}},
+    {{-0.5f, -0.5f, -0.5f}, {0.0f, 1.0f}, {255, 255, 255, 255}},
 };
 
 typedef struct {
@@ -123,13 +123,18 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 						}
 					}
 
-			int vboBytestNeeded = cluster->vboSize = sizeof(world_vertex) * 6 * sideCurrent;
-			if (!vboBytestNeeded) continue;
+			int vboBytestNeeded = sizeof(world_vertex) * 6 * sideCurrent;
+			if (!vboBytestNeeded) {
+				cluster->dirty &= ~Cluster_DirtyVBO;
+				continue;
+			}
 
 			if (cluster->vbo == NULL || cluster->vboSize == 0) {
+				// printf("%d Allocating lin heap\n", chunk->x + chunk->z + cluster->y);
 				cluster->vbo = linearAlloc(vboBytestNeeded + (sizeof(world_vertex) * 64));
 				cluster->vboSize = vboBytestNeeded;
 			} else if (cluster->vboSize < vboBytestNeeded) {
+				// printf("%d Freeing and then allocating lin heap\n", chunk->x + chunk->z + cluster->y);
 				linearFree(cluster->vbo);
 				cluster->vbo = linearAlloc(vboBytestNeeded);
 				cluster->vboSize = vboBytestNeeded;
@@ -153,10 +158,14 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 				int left = sides[j].sideAO & AOSide_Left;
 				int right = sides[j].sideAO & AOSide_Right;
 
+				int sideX = sides[j].x;
+				int sideY = sides[j].y;
+				int sideZ = sides[j].z;
+
 				for (int k = 0; k < 6; k++) {
-					ptr[k].position[0] += (float)sides[j].x;
-					ptr[k].position[1] += (float)sides[j].y;
-					ptr[k].position[2] += (float)sides[j].z;
+					ptr[k].position[0] += sideX;
+					ptr[k].position[1] += sideY;
+					ptr[k].position[2] += sideZ;
 
 					int ao = 0;
 					ao |= (ptr[k].uv[0] == 0.f && left);
@@ -165,9 +174,9 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 					ao |= (ptr[k].uv[1] == 1.f && top);
 					if (ao) {
 						// printf("AO!\n");
-						ptr[k].color[0] -= 0.2f;
-						ptr[k].color[1] -= 0.2f;
-						ptr[k].color[2] -= 0.2f;
+						ptr[k].color[0] -= 55;
+						ptr[k].color[1] -= 55;
+						ptr[k].color[2] -= 55;
 					}
 
 					ptr[k].uv[0] = (ptr[k].uv[0] == 1.f ? (oneDivIconsPerRow - halfTexel) : halfTexel) + blockUV[0];

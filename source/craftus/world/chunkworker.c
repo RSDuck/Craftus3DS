@@ -71,7 +71,7 @@ void ChunkWorker_Main(void* args) {
 
 			while (worker->queue[operatingOn].length > 0) {
 				ChunkWorker_Task task = vec_pop(&worker->queue[operatingOn]);
-				printf("Handling task of type %d\n", task.type);
+				// printf("Handling task of type %d\n", task.type);
 
 				for (int i = 0; i < worker->handler[task.type].length; i++) {
 					worker->handler[task.type].data[i].func(&worker->queue[operatingOn], task);

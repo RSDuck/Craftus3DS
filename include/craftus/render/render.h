@@ -14,8 +14,7 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk);
 typedef struct {
 	float position[3];
 	float uv[2];
-	float color[3];
+	uint8_t color[4];
 } world_vertex;
-
 
 #endif  // !RENDER_H_INCLUDED
