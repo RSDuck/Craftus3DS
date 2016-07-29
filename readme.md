@@ -16,6 +16,9 @@ Craftus in a Minecraft clone for Nintendo 3DS(and not a continuation of 3DSCraft
 * Some more optimiziation to let the game run on O3DS with 3D enabled with stable 30-40 FPS
 * (Maybe) support for Minecraft Ressourcepacks or atleast a custom format and a converter for PC
 
+## License
+Follows, currently all rights reserved (C) 2016 RSDuck but in near future some more liberal open source license
+
 ## Credits
 * Of course to those who made 3DS homebrew possible(too many to be listed here)
 * Everybody who wrote something for 3DS and made it open source
