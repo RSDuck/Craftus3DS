@@ -1,0 +1,3 @@
+#ifndef WORLDGEN_H_INCLUDED
+
+#endif  // !WORLDGEN_H_INCLUDED

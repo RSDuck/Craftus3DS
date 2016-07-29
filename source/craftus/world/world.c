@@ -1,0 +1,154 @@
+#include "craftus/world/world.h"
+#include "craftus/world/chunkworker.h"
+
+#include <string.h>
+#include <stdlib.h>
+#include <assert.h>
+
+#include <stdio.h>
+
+#include <3ds/types.h>
+#include <3ds/allocator/linear.h>
+
+World* World_New() {
+	World* world = (World*)malloc(sizeof(World));
+
+	strcpy(world->name, "Test");
+
+	world->genConfig.seed = 0;
+	world->genConfig.type = World_GenSuperFlat;
+
+	world->errFlags = 0;
+
+	poolInitialize(&world->chunkpool, sizeof(Chunk), CACHE_SIZE * CACHE_SIZE);
+	vec_init(&world->loadedChunks);
+
+	return world;
+}
+
+void World_Free(World* world) {
+	vec_deinit(&world->loadedChunks);
+	poolFreePool(&world->chunkpool);
+
+	free(world);
+}
+
+void World_Profile(World* world) {
+	printf("\nWorld: \n");
+	printf("Cache Begin: %d, %d | Real Begin: %d, %d\n", world->cache[0]->where.startX, world->cache[0]->where.startY, world->cache[0]->cache[0][0]->x,
+	       world->cache[0]->cache[0][0]->z);
+	printf("GC Cache Capacity: %d | Length %d\n", world->loadedChunks.capacity, world->loadedChunks.length);
+}
+
+extern ChunkWorker* cworker;
+Chunk* World_GetChunk(World* world, int x, int z) {
+	Chunk* chunk;
+	int i;
+	vec_foreach (&world->loadedChunks, chunk, i)
+		if (chunk->x == x && chunk->z == z) {
+			chunk->referenced++;
+			return chunk;
+		}
+
+	// Make a new one
+	chunk = poolMalloc(&world->chunkpool);
+	memset(chunk, 0, sizeof(Chunk));
+	chunk->x = x, chunk->z = z, chunk->referenced = 1;
+	for (int i = 0; i < CHUNK_HEIGHT / CHUNK_CLUSTER_HEIGHT; i++) {
+		chunk->data[i].y = i;
+	}
+
+	vec_push(&world->loadedChunks, chunk);
+
+	ChunkWorker_AddJob(cworker, chunk, ChunkWorker_TaskDecorateChunk);
+
+	return chunk;
+}
+
+void World_ReleaseChunk(World* world, int x, int z) {
+	Chunk* chunk;
+	int i;
+	vec_foreach (&world->loadedChunks, chunk, i)
+		if (chunk->x == x && chunk->z == z)
+			if (--chunk->referenced == 0) {
+				for (int j = 0; j < CHUNK_CLUSTER_COUNT; j++) linearFree(chunk->data[j].vbo);
+				poolFree(&world->chunkpool, chunk);
+				vec_splice(&world->loadedChunks, i, 1);
+
+				return;
+			}
+}
+
+void World_Tick(World* world) {
+	ChunkCache* cache = world->cache[0];
+	int orginalX = cache->cache[0][0]->x, orginalZ = cache->cache[0][0]->z;
+	if (cache->updatedWhere.startX != orginalX || cache->updatedWhere.startY != orginalZ) {
+		int delta = cache->updatedWhere.startX - cache->cache[0][0]->x;
+		int axis = 0;
+
+#define CACHE_AXIS cache->cache[!axis ? i : j][!axis ? j : i]
+
+		do {
+			if (delta != 0) {
+				if (delta > 0)
+					for (int i = 0; i < CACHE_SIZE; i++) {
+						if (i == 0)
+							for (int j = 0; j < CACHE_SIZE; j++) World_ReleaseChunk(world, CACHE_AXIS->x, CACHE_AXIS->z);
+						if (i + delta >= CACHE_SIZE)
+							for (int j = 0; j < CACHE_SIZE; j++)
+								CACHE_AXIS = World_GetChunk(world, CACHE_AXIS->x + (!axis ? delta : 0), CACHE_AXIS->z + (!axis ? 0 : delta));
+						else
+							for (int j = 0; j < CACHE_SIZE; j++) CACHE_AXIS = cache->cache[!axis ? (i + delta) : j][!axis ? j : (i + delta)];
+					}
+				else
+					for (int i = CACHE_SIZE - 1; i >= 0; i--) {
+						if (i == CACHE_SIZE - 1)
+							for (int j = 0; j < CACHE_SIZE; j++) World_ReleaseChunk(world, CACHE_AXIS->x, CACHE_AXIS->z);
+						if (i + delta < 0)
+							for (int j = 0; j < CACHE_SIZE; j++)
+								CACHE_AXIS = World_GetChunk(world, CACHE_AXIS->x + (!axis ? delta : 0), CACHE_AXIS->z + (!axis ? 0 : delta));
+						else
+							for (int j = 0; j < CACHE_SIZE; j++) CACHE_AXIS = cache->cache[!axis ? (i + delta) : j][!axis ? j : (i + delta)];
+					}
+			}
+
+			delta = cache->updatedWhere.startY - cache->cache[0][0]->z;
+			orginalX = cache->cache[0][0]->x, orginalZ = cache->cache[0][0]->z;
+		} while (++axis < 2);
+
+#undef CACHE_AXIS
+
+		cache->where = cache->updatedWhere;
+	}
+}
+
+void World_SetBlock(World* world, int x, int y, int z, Block block) {
+	ChunkCache* cache = world->cache[0];
+	if (Box_IsPointInside(cache->where, BlockToChunkCoordZ(x), BlockToChunkCoordZ(z)) && y >= 0 && y < CHUNK_HEIGHT) {
+		int chunkX = ChunkCache_LocalizeChunkX(cache, x), chunkZ = ChunkCache_LocalizeChunkZ(cache, z);
+		world->errFlags &= ~(World_ErrUnloadedBlockRequested);
+		if (cache->cache[chunkX][chunkZ]->dirty & Cluster_DirtyLocked) {
+			world->errFlags |= World_ErrLockedBlockRequested;
+		}
+		world->errFlags &= ~(World_ErrLockedBlockRequested);
+		Chunk_SetBlock(cache->cache[chunkX][chunkZ], Chunk_GetLocalX(x), y, Chunk_GetLocalZ(z), block);
+		return;
+	}
+	world->errFlags |= World_ErrUnloadedBlockRequested;
+}
+
+Block World_GetBlock(World* world, int x, int y, int z) {
+	ChunkCache* cache = world->cache[0];
+	if (Box_IsPointInside(cache->where, BlockToChunkCoordZ(x), BlockToChunkCoordZ(z)) && y >= 0 && y < CHUNK_HEIGHT) {
+		int chunkX = ChunkCache_LocalizeChunkX(cache, x), chunkZ = ChunkCache_LocalizeChunkZ(cache, z);
+		world->errFlags &= ~(World_ErrUnloadedBlockRequested);
+		if (cache->cache[chunkX][chunkZ]->dirty & Cluster_DirtyLocked) {
+			world->errFlags |= World_ErrLockedBlockRequested;
+			return Block_Air;
+		}
+		world->errFlags &= ~(World_ErrLockedBlockRequested);
+		return Chunk_GetBlock(cache->cache[chunkX][chunkZ], Chunk_GetLocalX(x), y, Chunk_GetLocalZ(z));
+	}
+	world->errFlags |= World_ErrUnloadedBlockRequested;
+	return Block_Air;
+}
