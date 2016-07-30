@@ -29,8 +29,7 @@ static Camera camera;
 
 static C3D_Tex texture_map;
 
-static C3D_RenderBuf renderBufLeft, renderBufRight;
-// static C3D_RenderTarget *target, *rightTarget;
+static C3D_RenderTarget *target, *rightTarget;
 
 /*
 Both of these(morton_interleave and get_morton_offset) seem to be more or less triple stolen from here: https://fgiesen.wordpress.com/2009/12/13/decoding-morton-codes/
@@ -54,25 +53,15 @@ static inline u32 get_morton_offset(u32 x, u32 y, u32 bytes_per_pixel) {
 void Render_Init() {
 	gfxSet3D(true);
 
-	C3D_Init(C3D_DEFAULT_CMDBUF_SIZE * 2);
+	C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
 
-	/* Initialize the render target
 	target = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
 	C3D_RenderTargetSetClear(target, C3D_CLEAR_ALL, 0x68B0D8FF, 0);
 	C3D_RenderTargetSetOutput(target, GFX_TOP, GFX_LEFT, DISPLAY_TRANSFER_FLAGS);
 
 	rightTarget = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
 	C3D_RenderTargetSetClear(rightTarget, C3D_CLEAR_ALL, 0x68B0D8FF, 0);
-	C3D_RenderTargetSetOutput(rightTarget, GFX_TOP, GFX_RIGHT, DISPLAY_TRANSFER_FLAGS);*/
-
-	C3D_RenderBufInit(&renderBufLeft, 240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
-	renderBufLeft.clearColor = 0x68B0D8FF;
-	C3D_RenderBufClear(&renderBufLeft);
-	C3D_RenderBufBind(&renderBufLeft);
-
-	C3D_RenderBufInit(&renderBufRight, 240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
-	renderBufRight.clearColor = 0x68B0D8FF;
-	C3D_RenderBufClear(&renderBufRight);
+	C3D_RenderTargetSetOutput(rightTarget, GFX_TOP, GFX_RIGHT, DISPLAY_TRANSFER_FLAGS);
 
 	world_dvlb = DVLB_ParseFile((u32*)world_shbin, world_shbin_size);
 	shaderProgramInit(&world_shader);
@@ -138,11 +127,11 @@ void Render_Exit() {
 static void polygonizeWorld(World* world) {
 	int chunksUpdated = 0;
 	ChunkCache* cache = world->cache[0];
-	for (int x = 0; x < CACHE_SIZE; x++) {
-		for (int z = 0; z < CACHE_SIZE; z++) {
+	for (int x = 0; x < CACHE_SIZE && chunksUpdated < 4; x++) {
+		for (int z = 0; z < CACHE_SIZE && chunksUpdated < 4; z++) {
 			Chunk* c = cache->cache[x][z];
-			if (c->dirty & Cluster_DirtyVBO && chunksUpdated <= 4) {
-				if (BlockRender_PolygonizeChunk(world, c)) c->dirty &= ~Cluster_DirtyVBO;
+			if (c->flags & ClusterFlags_VBODirty) {
+				if (BlockRender_PolygonizeChunk(world, c)) c->flags &= ~ClusterFlags_VBODirty;
 				chunksUpdated++;
 			}
 		}
@@ -156,6 +145,7 @@ static void renderWorld(Player* player) {
 
 	ChunkCache* cache = player->cache;
 	for (int x = 0; x < CACHE_SIZE; x++) {
+		int passedZ = 0;
 		for (int z = 0; z < CACHE_SIZE; z++) {
 			Chunk* c = cache->cache[x][z];
 			float chunkX = c->x * CHUNK_WIDTH, chunkZ = c->z * CHUNK_DEPTH;
@@ -170,30 +160,40 @@ static void renderWorld(Player* player) {
 				int passed = 0;
 
 				C3D_BufInfo* bufInfo = C3D_GetBufInfo();
-				BufInfo_Init(bufInfo);
-				for (int i = 0; i < CHUNK_HEIGHT / CHUNK_CLUSTER_HEIGHT; i++)
-					if (c->data[i].vbo) {
-						if (Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, c->data[i].y * CHUNK_CLUSTER_HEIGHT, chunkX},
-									 (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_CLUSTER_HEIGHT, CHUNK_WIDTH}))
-							BufInfo_Add(bufInfo, c->data[0].vbo, sizeof(world_vertex), 3, 0x210);
-						else if (passed)
-							break;
-						else
+
+				for (int i = 0; i < CHUNK_CLUSTER_COUNT; i++)
+					if (c->data[i].vbo && c->data[i].vertexCount) {
+						// bool visible = Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, c->data[i].y * CHUNK_CLUSTER_HEIGHT, chunkX},
+						//				    (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_CLUSTER_HEIGHT, CHUNK_WIDTH});
+						// if (i > 0) printf("Drawing buffer >0 & %d %d %d\n", visible, i, c->data[i].vertexCount);
+						if (1) {
+							BufInfo_Init(bufInfo);
+							BufInfo_Add(bufInfo, c->data[i].vbo, sizeof(world_vertex), 3, 0x210);
+							if (i == 1) {
+								printf("Rendering block at level 1\n");
+							}
+
+							C3D_DrawArrays(GPU_TRIANGLES, 0, c->data[i].vertexCount);
+
 							passed = 1;
+						} else if (passed)
+							break;
 					}
 
-				if (bufInfo->bufCount) C3D_DrawArrays(GPU_TRIANGLES, 0, c->vertexCount);
-
 				chunksDrawn++;
-			}
+
+				passedZ = 1;
+			} else if (passedZ)
+				break;
 		}
 	}
 }
 
 void Render(Player* player) {
-	polygonizeWorld(player->world);
+	C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+	C3D_FrameDrawOn(target);
 
-	C3D_RenderBufBind(&renderBufLeft);
+	polygonizeWorld(player->world);
 
 	float iod = osGet3DSliderState() / 3.f;
 
@@ -202,29 +202,13 @@ void Render(Player* player) {
 
 	renderWorld(player);
 
-	printf("CMDBuf Usage: L: %f", C3D_GetCmdBufUsage());
-
-	C3D_Flush();
-
-	C3D_RenderBufTransferAsync(&renderBufLeft, (u32*)gfxGetFramebuffer(GFX_TOP, GFX_LEFT, NULL, NULL), DISPLAY_TRANSFER_FLAGS);
-
 	if (iod > 0.f) {
-		C3D_RenderBufBind(&renderBufRight);
+		C3D_FrameDrawOn(rightTarget);
 
 		Camera_Update(&camera, player, iod);
 		C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocProjection, &camera.projection);
 
 		renderWorld(player);
-
-		printf("R: %f\n", C3D_GetCmdBufUsage());
-
-		C3D_Flush();
-
-		gspWaitForPPF();
-		C3D_RenderBufTransfer(&renderBufRight, (u32*)gfxGetFramebuffer(GFX_TOP, GFX_RIGHT, NULL, NULL), DISPLAY_TRANSFER_FLAGS);
-		C3D_RenderBufClear(&renderBufRight);
 	}
-	C3D_RenderBufClear(&renderBufLeft);
-
-	C3D_VideoSync();
+	C3D_FrameEnd(0);
 }

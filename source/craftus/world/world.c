@@ -15,7 +15,7 @@ World* World_New() {
 
 	strcpy(world->name, "Test");
 
-	world->genConfig.seed = 0;
+	world->genConfig.seed = 2811;  // My birthday
 	world->genConfig.type = World_GenSuperFlat;
 
 	world->errFlags = 0;
@@ -54,7 +54,7 @@ Chunk* World_GetChunk(World* world, int x, int z) {
 	chunk = poolMalloc(&world->chunkpool);
 	memset(chunk, 0, sizeof(Chunk));
 	chunk->x = x, chunk->z = z, chunk->referenced = 1;
-	for (int i = 0; i < CHUNK_HEIGHT / CHUNK_CLUSTER_HEIGHT; i++) {
+	for (int i = 0; i < CHUNK_CLUSTER_COUNT; i++) {
 		chunk->data[i].y = i;
 	}
 
@@ -126,12 +126,22 @@ void World_SetBlock(World* world, int x, int y, int z, Block block) {
 	ChunkCache* cache = world->cache[0];
 	if (Box_IsPointInside(cache->where, BlockToChunkCoordZ(x), BlockToChunkCoordZ(z)) && y >= 0 && y < CHUNK_HEIGHT) {
 		int chunkX = ChunkCache_LocalizeChunkX(cache, x), chunkZ = ChunkCache_LocalizeChunkZ(cache, z);
+		int lX = Chunk_GetLocalX(x), lZ = Chunk_GetLocalZ(z);
+
 		world->errFlags &= ~(World_ErrUnloadedBlockRequested);
-		if (cache->cache[chunkX][chunkZ]->dirty & Cluster_DirtyLocked) {
+		if (cache->cache[chunkX][chunkZ]->flags & ClusterFlags_InProcess) {
 			world->errFlags |= World_ErrLockedBlockRequested;
+			return;
 		}
 		world->errFlags &= ~(World_ErrLockedBlockRequested);
-		Chunk_SetBlock(cache->cache[chunkX][chunkZ], Chunk_GetLocalX(x), y, Chunk_GetLocalZ(z), block);
+		Chunk_SetBlock(cache->cache[chunkX][chunkZ], lX, y, lZ, block);
+
+		int clusterY = y / CHUNK_CLUSTER_HEIGHT;
+		if (lX == 0 && chunkX - 1 >= 0) Chunk_MarkCluster(cache->cache[chunkX - 1][chunkZ], clusterY, ClusterFlags_VBODirty);
+		if (lX == CHUNK_WIDTH - 1 && chunkX + 1 < CACHE_SIZE) Chunk_MarkCluster(cache->cache[chunkX + 1][chunkZ], clusterY, ClusterFlags_VBODirty);
+		if (lZ == 0 && chunkZ - 1 >= 0) Chunk_MarkCluster(cache->cache[chunkX][chunkZ - 1], clusterY, ClusterFlags_VBODirty);
+		if (lZ == CHUNK_DEPTH - 1 && chunkZ + 1 < CACHE_SIZE) Chunk_MarkCluster(cache->cache[chunkX][chunkZ + 1], clusterY, ClusterFlags_VBODirty);
+
 		return;
 	}
 	world->errFlags |= World_ErrUnloadedBlockRequested;
@@ -141,8 +151,8 @@ Block World_GetBlock(World* world, int x, int y, int z) {
 	ChunkCache* cache = world->cache[0];
 	if (Box_IsPointInside(cache->where, BlockToChunkCoordZ(x), BlockToChunkCoordZ(z)) && y >= 0 && y < CHUNK_HEIGHT) {
 		int chunkX = ChunkCache_LocalizeChunkX(cache, x), chunkZ = ChunkCache_LocalizeChunkZ(cache, z);
-		world->errFlags &= ~(World_ErrUnloadedBlockRequested);
-		if (cache->cache[chunkX][chunkZ]->dirty & Cluster_DirtyLocked) {
+		world->errFlags &= ~World_ErrUnloadedBlockRequested;
+		if (cache->cache[chunkX][chunkZ]->flags & ClusterFlags_InProcess) {
 			world->errFlags |= World_ErrLockedBlockRequested;
 			return Block_Air;
 		}

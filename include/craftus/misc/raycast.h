@@ -10,6 +10,7 @@
 typedef struct {
 	int x, y, z;
 	Direction direction;
+	float distSqr;
 } Raycast_Result;
 
 bool Raycast_Cast(World* world, C3D_FVec inpos, C3D_FVec raydir, Raycast_Result* out);

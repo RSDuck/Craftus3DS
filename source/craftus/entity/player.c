@@ -11,7 +11,7 @@
 Player* Player_New() {
 	Player* player = malloc(sizeof(Player));
 	player->x = 0.f;
-	player->y = 16.f;
+	player->y = 30.f;
 	player->z = 0.f;
 	player->yaw = 0.f;
 	player->pitch = 0.f;
@@ -44,6 +44,7 @@ static u32 lastKeys;
 
 const float DEG_TO_RAD = M_PI * (1.f / 180.f);
 
+static float blockBreakBuildTimeout = 0.f;
 void Player_Update(Player* player, u32 input, float deltaTime) {
 	float dx = 0.f, dy = -10.f, dz = 0.f;
 
@@ -104,11 +105,21 @@ void Player_Update(Player* player, u32 input, float deltaTime) {
 	final.x = -sinf(player->yaw) * cosf(player->pitch);
 	final.y = sinf(player->pitch);
 	final.z = -cosf(player->yaw) * cosf(player->pitch);
-	printf("Orientation: %f, %f, %f\n", final.x, final.y, final.z);
-	if (Raycast_Cast(player->world, (C3D_FVec){1.f, FastFloor(player->z), FastFloor(player->y + PLAYER_EYE_HEIGHT), FastFloor(player->x)}, final, &rayRes)) {
-		printf("Block set %d, %d, %d\n", rayRes.x, rayRes.y, rayRes.z);
-		World_SetBlock(player->world, rayRes.x, rayRes.y, rayRes.z, Block_Stone);
+
+	bool hit = Raycast_Cast(player->world, (C3D_FVec){1.f, player->z, player->y + PLAYER_EYE_HEIGHT, player->x}, final, &rayRes);
+	if (hit) printf("Ray hit a %d, %d, %d %f %d\n", rayRes.x, rayRes.y, rayRes.z, rayRes.distSqr, rayRes.direction);
+
+	if (blockBreakBuildTimeout <= 0.f && hit && rayRes.distSqr <= (5.f * 5.f + 5.f * 5.f + 5.f * 5.f)) {
+		if (input & KEY_Y) {
+			World_SetBlock(player->world, rayRes.x, rayRes.y, rayRes.z, Block_Air);
+		}
+		if (input & KEY_A) {
+			const int* blockOffset = DirectionToPosition[rayRes.direction];
+			World_SetBlock(player->world, rayRes.x + blockOffset[0], rayRes.y + blockOffset[1], rayRes.z + blockOffset[2], Block_Stone);
+		}
+		blockBreakBuildTimeout = 0.15f;
 	}
+	blockBreakBuildTimeout -= deltaTime;
 
 	lastKeys = input;
 }

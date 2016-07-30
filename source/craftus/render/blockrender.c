@@ -85,11 +85,11 @@ const int aoTable[Directions_Count][4][3] = {
 };
 
 bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
-	if (chunk->dirty & Cluster_DirtyLocked) return false;
+	if (chunk->flags & ClusterFlags_InProcess) return false;
 
 	for (int i = 0; i < CHUNK_CLUSTER_COUNT; i++) {
 		Cluster* cluster = &chunk->data[i];
-		if (cluster->dirty & Cluster_DirtyVBO) {
+		if (cluster->flags & ClusterFlags_VBODirty) {
 			chunk->vertexCount -= cluster->vertexCount;
 
 #define MAX_SIDES (6 * (CHUNK_WIDTH * CHUNK_CLUSTER_HEIGHT * CHUNK_DEPTH / 2))
@@ -102,10 +102,7 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 						if (cluster->blocks[x][y][z] != Block_Air) {
 							for (int j = 0; j < Directions_Count; j++) {
 								const int* pos = DirectionToPosition[j];
-								int axis = 0;
-								if (pos[0] != 0) axis = 0;
-								if (pos[1] != 0) axis = 1;
-								if (pos[2] != 0) axis = 2;
+
 								if (fastBlockFetch(world, chunk, cluster, x + pos[0], y + pos[1], z + pos[2]) == Block_Air) {
 									sides[sideCurrent] = (Side){x, y, z, j, cluster->blocks[x][y][z]};
 
@@ -125,7 +122,9 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 
 			int vboBytestNeeded = sizeof(world_vertex) * 6 * sideCurrent;
 			if (!vboBytestNeeded) {
-				cluster->dirty &= ~Cluster_DirtyVBO;
+				cluster->vertexCount = 0;
+				cluster->flags &= ~ClusterFlags_VBODirty;
+				cluster->flags |= ClusterFlags_Empty;
 				continue;
 			}
 
@@ -139,6 +138,7 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 				cluster->vbo = linearAlloc(vboBytestNeeded);
 				cluster->vboSize = vboBytestNeeded;
 			}
+			if (!cluster->vbo) printf("VBO allocation failed\n");
 
 			int vertexCount = 0;
 
@@ -158,9 +158,11 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 				int left = sides[j].sideAO & AOSide_Left;
 				int right = sides[j].sideAO & AOSide_Right;
 
-				int sideX = sides[j].x;
-				int sideY = sides[j].y;
-				int sideZ = sides[j].z;
+				float sideX = sides[j].x;
+				float sideY = sides[j].y + (cluster->y * CHUNK_CLUSTER_HEIGHT);
+				float sideZ = sides[j].z;
+
+				if (i > 0) printf("%f\n", sideY);
 
 				for (int k = 0; k < 6; k++) {
 					ptr[k].position[0] += sideX;
@@ -188,12 +190,23 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 				ptr += 6;
 				vertexCount += 6;
 			}
-			GX_FlushCacheRegions((u32*)cluster->vbo, (u32)cluster->vboSize, NULL, 0, NULL, 0);
+			// GX_FlushCacheRegions((u32*)cluster->vbo, (u32)cluster->vboSize, NULL, 0, NULL, 0);
 
 			cluster->vertexCount = vertexCount;
 			chunk->vertexCount += vertexCount;
 
-			cluster->dirty &= ~Cluster_DirtyVBO;
+			{
+				FILE* f = fopen("vertdump.txt", "a");
+				fprintf(f, "Cluster: %d %d %d Verts: %d\n", chunk->x, cluster->y, chunk->z, cluster->vertexCount);
+
+				world_vertex* ptr = (world_vertex*)cluster->vbo;
+				for (int j = 0; j < sideCurrent; j++, ptr++) {
+					fprintf(f, "%f, %f, %f\t\n", ptr->position[0], ptr->position[1], ptr->position[2]);
+				}
+				fclose(f);
+			}
+
+			cluster->flags &= ~ClusterFlags_VBODirty;
 		}
 	}
 	return true;

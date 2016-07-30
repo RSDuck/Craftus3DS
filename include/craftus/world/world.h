@@ -19,13 +19,13 @@
 #define CHUNK_CLUSTER_HEIGHT 16
 #define CHUNK_CLUSTER_COUNT CHUNK_HEIGHT / CHUNK_CLUSTER_HEIGHT
 
-enum { Cluster_Dirty = 0xFF & ~BIT(1), Cluster_DirtyVBO = BIT(0), Cluster_DirtyLocked = BIT(1) };
+enum { ClusterFlags_VBODirty = BIT(0), ClusterFlags_InProcess = BIT(1), ClusterFlags_Empty = BIT(2) };
 
 typedef struct {
 	int y;
 
 	Block blocks[CHUNK_WIDTH][CHUNK_CLUSTER_HEIGHT][CHUNK_DEPTH];
-	int dirty;
+	int flags;
 
 	float* vbo;
 	int vboSize;
@@ -39,10 +39,15 @@ typedef struct {
 
 	int vertexCount;
 
-	int dirty;
+	int flags;
 
-	Cluster data[CHUNK_HEIGHT / CHUNK_CLUSTER_HEIGHT];
+	Cluster data[CHUNK_CLUSTER_COUNT];
 } Chunk;
+
+inline void Chunk_MarkCluster(Chunk* chunk, int cluster, int flag) {
+	chunk->data[cluster].flags |= flag;
+	chunk->flags |= flag;
+}
 
 inline int Chunk_GetLocalX(int x) {
 	int modX = (x - (x / CHUNK_WIDTH * CHUNK_WIDTH));
@@ -57,8 +62,8 @@ inline int FastFloor(float x) { return (int)x - (x < (int)x); }
 
 inline void Chunk_SetBlock(Chunk* c, int x, int y, int z, Block block) {
 	c->data[y / CHUNK_CLUSTER_HEIGHT].blocks[x][y - (y / CHUNK_CLUSTER_HEIGHT * CHUNK_CLUSTER_HEIGHT)][z] = block;
-	c->data[y / CHUNK_CLUSTER_HEIGHT].dirty = Cluster_DirtyVBO;
-	c->dirty = Cluster_Dirty;
+	c->data[y / CHUNK_CLUSTER_HEIGHT].flags |= ClusterFlags_VBODirty;
+	c->flags |= ClusterFlags_VBODirty;
 }
 
 inline Block Chunk_GetBlock(Chunk* c, int x, int y, int z) { return c->data[y / CHUNK_CLUSTER_HEIGHT].blocks[x][y - (y / CHUNK_CLUSTER_HEIGHT * CHUNK_CLUSTER_HEIGHT)][z]; }
@@ -84,7 +89,7 @@ enum World_ErrorFlags { World_ErrUnloadedBlockRequested = 1, World_ErrLockedBloc
 enum World_GenType { World_GenNormal = 0, World_GenSuperFlat = 1 };
 
 typedef struct {
-	unsigned long seed;
+	long seed;
 	int type;
 } World_GenConfig;
 

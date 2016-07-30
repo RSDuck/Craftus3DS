@@ -53,7 +53,7 @@ void ChunkWorker_AddHandler(ChunkWorker* worker, ChunkWorker_TaskType type, Chun
 }
 
 void ChunkWorker_AddJob(ChunkWorker* worker, Chunk* chunk, ChunkWorker_TaskType type) {
-	chunk->dirty |= Cluster_DirtyLocked;
+	chunk->flags |= ClusterFlags_InProcess;
 
 	ChunkWorker_Task task;
 	task.type = type;
@@ -64,6 +64,8 @@ void ChunkWorker_AddJob(ChunkWorker* worker, Chunk* chunk, ChunkWorker_TaskType 
 void ChunkWorker_Main(void* args) {
 	printf("Hello from a worker thread\n");
 	ChunkWorker* worker = (ChunkWorker*)args;
+	vec_t(Chunk*)unlockList;
+	vec_init(&unlockList);
 	while (worker != workerToStop) {
 		if (!LightLock_TryLock(&worker->lock)) {
 			int operatingOn = worker->currentQueue;
@@ -76,14 +78,18 @@ void ChunkWorker_Main(void* args) {
 				for (int i = 0; i < worker->handler[task.type].length; i++) {
 					worker->handler[task.type].data[i].func(&worker->queue[operatingOn], task);
 				}
-				task.chunk->dirty &= ~Cluster_DirtyLocked;
-				svcSleepThread(1000);
+				vec_push(&unlockList, task.chunk);
+
+				svcSleepThread(100);
 			}
+
+			while (unlockList.length > 0) vec_pop(&unlockList)->flags &= ~ClusterFlags_InProcess;
 
 			LightLock_Unlock(&worker->lock);
 
 			svcSleepThread(100000);
 		}
 	}
+	vec_deinit(&unlockList);
 	printf("It's time so say goodbye for the worker thread\n");
 }

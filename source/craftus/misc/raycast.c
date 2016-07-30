@@ -1,4 +1,5 @@
 #include "craftus/misc/raycast.h"
+#include "craftus/render/vecmath.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -41,7 +42,7 @@ bool Raycast_Cast(World* world, C3D_FVec inpos, C3D_FVec raydir, Raycast_Result*
 		sideDistZ = (mapZ + 1.f - inpos.z) * deltaDistZ;
 	}
 
-	int hit = 0, side;
+	int hit = 0, side = 0;
 	while (hit == 0) {
 		if (sideDistX < sideDistY && sideDistX < sideDistZ) {
 			sideDistX += deltaDistX;
@@ -61,10 +62,35 @@ bool Raycast_Cast(World* world, C3D_FVec inpos, C3D_FVec raydir, Raycast_Result*
 		if (world->errFlags & World_ErrUnloadedBlockRequested) break;
 	}
 
+	switch (side) {
+		case 0:  // X Achse
+			if (raydir.x > 0.f)
+				out->direction = Direction_Left;
+			else
+				out->direction = Direction_Right;
+			break;
+		case 1:  // Y Achse
+			if (raydir.y > 0.f)
+				out->direction = Direction_Bottom;
+			else
+				out->direction = Direction_Top;
+			break;
+		case 2:  // Z Achse
+			if (raydir.z > 0.f)
+				out->direction = Direction_Back;
+			else
+				out->direction = Direction_Front;
+			break;
+		default:
+			printf("Unknown axis! %d\n", side);
+			break;
+	}
+
+	C3D_FVec dist = FVec_Sub((C3D_FVec){1.f, mapZ, mapY, mapX}, inpos);
+	out->distSqr = dist.x * dist.x + dist.y * dist.y + dist.z * dist.z;
 	out->x = mapX;
 	out->y = mapY;
 	out->z = mapZ;
-	out->direction = 0;
 
 	return hit;
 }

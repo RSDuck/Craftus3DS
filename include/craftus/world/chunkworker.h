@@ -1,4 +1,5 @@
 #ifndef CHUNKWORKER_H_INCLUDED
+#define CHUNKWORKER_H_INCLUDED
 
 #include <3ds.h>
 

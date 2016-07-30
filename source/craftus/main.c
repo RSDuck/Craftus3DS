@@ -2,6 +2,7 @@
 #include "craftus/entity/player.h"
 #include "craftus/render/render.h"
 #include "craftus/world/chunkworker.h"
+#include "craftus/world/worldgen.h"
 
 #include <3ds.h>
 #include <citro3d.h>
@@ -15,13 +16,13 @@ static bool generateFlatWorld_test(ChunkWorker_Queue* queue, ChunkWorker_Task ta
 			for (int x = 0; x < CHUNK_WIDTH; x++) {
 				Block b = Block_Air;
 				switch (y) {
-					case 0 ... 1:
+					case 0 ... 8:
 						b = Block_Stone;
 						break;
-					case 2 ... 6:
+					case 9 ... 14:
 						b = Block_Dirt;
 						break;
-					case 7:
+					case 15:
 						b = Block_Grass;
 						break;
 					default:
@@ -59,9 +60,11 @@ int main(int argc, char* argv[]) {
 	consoleSetWindow(&consoleEvent, 0, 240 / 16 + 1, 320 / 8, 240 / 16 - 1);
 
 	World* world = World_New();
+	WorldGen_Setup(world);
 
 	cworker = ChunkWorker_New(world);
 	ChunkWorker_AddHandler(cworker, ChunkWorker_TaskDecorateChunk, &generateFlatWorld_test, 0);
+	// ChunkWorker_AddHandler(cworker, ChunkWorker_TaskDecorateChunk, &WorldGen_ChunkBaseGenerator, 0);
 
 	Player* player = Player_New();
 	Player_Spawn(player, world);
@@ -92,7 +95,7 @@ int main(int argc, char* argv[]) {
 
 		hidScanInput();
 
-		gfxFlushBuffers();
+		// gfxFlushBuffers();
 
 		consoleSelect(&consoleStatus);
 		consoleClear();
@@ -107,9 +110,9 @@ int main(int argc, char* argv[]) {
 
 		Player_Update(player, input, (float)deltaTime / 1000.f);
 
-		gfxFlushBuffers();
+		// gfxFlushBuffers();
 
-		// consoleSelect(&consoleEvent);
+		consoleSelect(&consoleEvent);
 
 		Render(player);
 
