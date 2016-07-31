@@ -74,12 +74,21 @@ int main(int argc, char* argv[]) {
 		svcSleepThread(200000);
 	}
 
-	u64 time = osGetTime(), tickClock = 0, deltaTime = 0, fpsClock = 0;
-	u32 fps = 0, fpsCounter = 0;
+	for (int x = 0; x < CACHE_SIZE; x++) {
+		for (int z = 0; z < CACHE_SIZE; z++) {
+			if (world->cache[0]->cache[x][z]->flags & ClusterFlags_VBODirty)
+				if (BlockRender_PolygonizeChunk(world, world->cache[0]->cache[x][z])) {
+					world->cache[0]->cache[x][z]->flags &= ~ClusterFlags_VBODirty;
+				}
+		}
+	}
 
 	for (float i = 0; i < M_PI * 2; i += 1.f * M_PI / 180.f) {
 		World_SetBlock(player->world, FastFloor(sinf(i) * 16.f), 8, FastFloor(cosf(i) * 16.f), Block_Dirt);
 	}
+
+	u64 time = osGetTime(), tickClock = 0, deltaTime = 0, fpsClock = 0;
+	u32 fps = 0, fpsCounter = 0;
 
 	while (aptMainLoop()) {
 		consoleSelect(&consoleEvent);

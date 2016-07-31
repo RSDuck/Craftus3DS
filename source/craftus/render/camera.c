@@ -52,10 +52,6 @@ bool Camera_IsPointVisible(Camera* cam, C3D_FVec point) {
 
 #include <stdio.h>
 
-static const C3D_FVec box[8] = {
-    (C3D_FVec){1.f, 0.f, 0.f, 0.f}, (C3D_FVec){1.f, 0.f, 0.f, 1.f}, (C3D_FVec){1.f, 0.f, 1.f, 0.f}, (C3D_FVec){1.f, 1.f, 0.f, 0.f},
-    (C3D_FVec){1.f, 0.f, 1.f, 1.f}, (C3D_FVec){1.f, 1.f, 0.f, 1.f}, (C3D_FVec){1.f, 0.f, 1.f, 1.f}, (C3D_FVec){1.f, 1.f, 1.f, 1.f},
-};
 bool Camera_IsAABBVisible(Camera* cam, C3D_FVec orgin, C3D_FVec size) {
 	/*int in, out;
 	for (int i = 0; i < 6; i++) {

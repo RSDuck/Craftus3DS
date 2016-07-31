@@ -143,6 +143,8 @@ static void renderWorld(Player* player) {
 
 	int chunksDrawn = 0;
 
+	C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocModelView, &camera.view);
+
 	ChunkCache* cache = player->cache;
 	for (int x = 0; x < CACHE_SIZE; x++) {
 		int passedZ = 0;
@@ -150,28 +152,18 @@ static void renderWorld(Player* player) {
 			Chunk* c = cache->cache[x][z];
 			float chunkX = c->x * CHUNK_WIDTH, chunkZ = c->z * CHUNK_DEPTH;
 			if (Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, 0.f, chunkX}, (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH})) {
-				Mtx_Identity(&modelMtx);
-				Mtx_Translate(&modelMtx, 0.5f + chunkX, 0.5f, 0.5f + chunkZ);
-
-				Mtx_Multiply(&modelView, &camera.view, &modelMtx);
-
-				C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocModelView, &modelView);
-
 				int passed = 0;
 
 				C3D_BufInfo* bufInfo = C3D_GetBufInfo();
 
 				for (int i = 0; i < CHUNK_CLUSTER_COUNT; i++)
 					if (c->data[i].vbo && c->data[i].vertexCount) {
-						// bool visible = Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, c->data[i].y * CHUNK_CLUSTER_HEIGHT, chunkX},
-						//				    (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_CLUSTER_HEIGHT, CHUNK_WIDTH});
-						// if (i > 0) printf("Drawing buffer >0 & %d %d %d\n", visible, i, c->data[i].vertexCount);
-						if (1) {
+						bool visible = Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, c->data[i].y * CHUNK_CLUSTER_HEIGHT, chunkX},
+										    (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_CLUSTER_HEIGHT, CHUNK_WIDTH});
+						if (visible) {
+							if (i > 0) printf("%d %d %d\n", i, c->data[i].y, c->data[i].vertexCount);
 							BufInfo_Init(bufInfo);
 							BufInfo_Add(bufInfo, c->data[i].vbo, sizeof(world_vertex), 3, 0x210);
-							if (i == 1) {
-								printf("Rendering block at level 1\n");
-							}
 
 							C3D_DrawArrays(GPU_TRIANGLES, 0, c->data[i].vertexCount);
 

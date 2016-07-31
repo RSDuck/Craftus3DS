@@ -135,7 +135,7 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 			} else if (cluster->vboSize < vboBytestNeeded) {
 				// printf("%d Freeing and then allocating lin heap\n", chunk->x + chunk->z + cluster->y);
 				linearFree(cluster->vbo);
-				cluster->vbo = linearAlloc(vboBytestNeeded);
+				cluster->vbo = linearAlloc(vboBytestNeeded + (sizeof(world_vertex) * 64));
 				cluster->vboSize = vboBytestNeeded;
 			}
 			if (!cluster->vbo) printf("VBO allocation failed\n");
@@ -145,7 +145,11 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 			world_vertex* ptr = (world_vertex*)cluster->vbo;
 
 			const float oneDivIconsPerRow = 1.f / 4.f;
-			const float halfTexel = /*1.f / (64.f * 8.f)*/ 1.f / 128.f;
+			const float halfTexel = /*1.f / (64.f * 8.f)*/ 1.f / 256.f;
+
+			float clusterX = (chunk->x * CHUNK_WIDTH) + 0.5f;
+			float clusterY = (cluster->y * CHUNK_CLUSTER_HEIGHT) + 0.5f;
+			float clusterZ = (chunk->z * CHUNK_DEPTH) + 0.5f;
 
 			float blockUV[2];
 			for (int j = 0; j < sideCurrent; j++) {
@@ -158,11 +162,9 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 				int left = sides[j].sideAO & AOSide_Left;
 				int right = sides[j].sideAO & AOSide_Right;
 
-				float sideX = sides[j].x;
-				float sideY = sides[j].y + (cluster->y * CHUNK_CLUSTER_HEIGHT);
-				float sideZ = sides[j].z;
-
-				if (i > 0) printf("%f\n", sideY);
+				float sideX = sides[j].x + clusterX;
+				float sideY = sides[j].y + clusterY;
+				float sideZ = sides[j].z + clusterZ;
 
 				for (int k = 0; k < 6; k++) {
 					ptr[k].position[0] += sideX;
@@ -195,7 +197,7 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 			cluster->vertexCount = vertexCount;
 			chunk->vertexCount += vertexCount;
 
-			{
+			/*{
 				FILE* f = fopen("vertdump.txt", "a");
 				fprintf(f, "Cluster: %d %d %d Verts: %d\n", chunk->x, cluster->y, chunk->z, cluster->vertexCount);
 
@@ -204,7 +206,7 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 					fprintf(f, "%f, %f, %f\t\n", ptr->position[0], ptr->position[1], ptr->position[2]);
 				}
 				fclose(f);
-			}
+			}*/
 
 			cluster->flags &= ~ClusterFlags_VBODirty;
 		}

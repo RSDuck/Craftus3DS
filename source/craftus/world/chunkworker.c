@@ -78,12 +78,13 @@ void ChunkWorker_Main(void* args) {
 				for (int i = 0; i < worker->handler[task.type].length; i++) {
 					worker->handler[task.type].data[i].func(&worker->queue[operatingOn], task);
 				}
-				vec_push(&unlockList, task.chunk);
+				// vec_push(&unlockList, task.chunk);
+				task.chunk->flags &= ~ClusterFlags_InProcess;
 
 				svcSleepThread(100);
 			}
 
-			while (unlockList.length > 0) vec_pop(&unlockList)->flags &= ~ClusterFlags_InProcess;
+			// while (unlockList.length > 0) vec_pop(&unlockList)->flags &= ~ClusterFlags_InProcess;
 
 			LightLock_Unlock(&worker->lock);
 
