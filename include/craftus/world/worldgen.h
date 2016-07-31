@@ -5,6 +5,8 @@
 #include "craftus/world/world.h"
 #include "craftus/world/chunkworker.h"
 
+#define WORLDGEN_SEALEVEL 64
+
 typedef struct {
 	World* world;
 	snoise_permtable permTable;

@@ -90,8 +90,6 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 	for (int i = 0; i < CHUNK_CLUSTER_COUNT; i++) {
 		Cluster* cluster = &chunk->data[i];
 		if (cluster->flags & ClusterFlags_VBODirty) {
-			chunk->vertexCount -= cluster->vertexCount;
-
 #define MAX_SIDES (6 * (CHUNK_WIDTH * CHUNK_CLUSTER_HEIGHT * CHUNK_DEPTH / 2))
 			static Side sides[MAX_SIDES];
 			int sideCurrent = 0;
@@ -152,10 +150,13 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 			float clusterZ = (chunk->z * CHUNK_DEPTH) + 0.5f;
 
 			float blockUV[2];
+
 			for (int j = 0; j < sideCurrent; j++) {
 				memcpy(ptr, &cube_sides_lut[(sides[j].sideAO & 0xF) * 6], sizeof(world_vertex) * 6);
 
 				Blocks_GetUVs(sides[j].block, (sides[j].sideAO & 0xF), blockUV);
+
+				// if (i > 0) printf("%u %f %f\n", sides[j].block, blockUV[0], blockUV[1]);
 
 				int top = sides[j].sideAO & AOSide_Top;
 				int bottom = sides[j].sideAO & AOSide_Bottom;
@@ -177,7 +178,6 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 					ao |= (ptr[k].uv[1] == 0.f && bottom);
 					ao |= (ptr[k].uv[1] == 1.f && top);
 					if (ao) {
-						// printf("AO!\n");
 						ptr[k].color[0] -= 55;
 						ptr[k].color[1] -= 55;
 						ptr[k].color[2] -= 55;
@@ -195,7 +195,6 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 			// GX_FlushCacheRegions((u32*)cluster->vbo, (u32)cluster->vboSize, NULL, 0, NULL, 0);
 
 			cluster->vertexCount = vertexCount;
-			chunk->vertexCount += vertexCount;
 
 			/*{
 				FILE* f = fopen("vertdump.txt", "a");

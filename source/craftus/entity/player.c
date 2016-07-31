@@ -11,7 +11,7 @@
 Player* Player_New() {
 	Player* player = malloc(sizeof(Player));
 	player->x = 0.f;
-	player->y = 30.f;
+	player->y = 65.f;
 	player->z = 0.f;
 	player->yaw = 0.f;
 	player->pitch = 0.f;
@@ -48,30 +48,36 @@ static float blockBreakBuildTimeout = 0.f;
 void Player_Update(Player* player, u32 input, float deltaTime) {
 	float dx = 0.f, dy = -10.f, dz = 0.f;
 
+	circlePosition circ;
+	hidCircleRead(&circ);
+
+	float circX = fabsf((float)circ.dx / 156.f);
+	float circY = fabsf((float)circ.dy / 156.f);
+
 	if (input & KEY_R) {
 		// Strafing
 		if (input & KEY_CPAD_RIGHT) {
-			dx += sinf(player->yaw + (M_PI / 2.f)) * 4.f;
-			dz += cosf(player->yaw + (M_PI / 2.f)) * 4.f;
+			dx += sinf(player->yaw + (M_PI / 2.f)) * circX * 4.f;
+			dz += cosf(player->yaw + (M_PI / 2.f)) * circX * 4.f;
 		}
 		if (input & KEY_CPAD_LEFT) {
-			dx += sinf(player->yaw - (M_PI / 2.f)) * 4.f;
-			dz += cosf(player->yaw - (M_PI / 2.f)) * 4.f;
+			dx += sinf(player->yaw - (M_PI / 2.f)) * circX * 4.f;
+			dz += cosf(player->yaw - (M_PI / 2.f)) * circX * 4.f;
 		}
 	} else {
 		// Drehen nach links und rechts
-		if (input & KEY_CPAD_LEFT) player->yaw += 100.f * DEG_TO_RAD * deltaTime;
-		if (input & KEY_CPAD_RIGHT) player->yaw -= 100.f * DEG_TO_RAD * deltaTime;
+		if (input & KEY_CPAD_LEFT) player->yaw += 100.f * DEG_TO_RAD * circX * deltaTime;
+		if (input & KEY_CPAD_RIGHT) player->yaw -= 100.f * DEG_TO_RAD * circX * deltaTime;
 	}
 
 	// Vorwärts und Rückwärts
 	if (input & KEY_CPAD_UP) {
-		dx -= sinf(player->yaw) * 4.f;
-		dz -= cosf(player->yaw) * 4.f;
+		dx -= sinf(player->yaw) * circY * 4.f;
+		dz -= cosf(player->yaw) * circY * 4.f;
 	}
 	if (input & KEY_CPAD_DOWN) {
-		dx += sinf(player->yaw) * 4.f;
-		dz += cosf(player->yaw) * 4.f;
+		dx += sinf(player->yaw) * circY * 4.f;
+		dz += cosf(player->yaw) * circY * 4.f;
 	}
 
 	// Drehen nach oben und unten
@@ -94,7 +100,7 @@ void Player_Update(Player* player, u32 input, float deltaTime) {
 		    World_GetBlock(player->world, FastFloor(player->x), FastFloor(player->y) + 1, FastFloor(player->z + dz + SIGN(dz, 0.1))) == Block_Air)
 			player->z += dz;
 
-		player->bobbing += 360.f * DEG_TO_RAD * deltaTime;
+		player->bobbing += (360.f * 6.f) * DEG_TO_RAD * deltaTime;
 		if (player->bobbing >= 360.f * DEG_TO_RAD) player->bobbing = 0.f;  // Anti Overflow
 
 		Player_Moved(player);

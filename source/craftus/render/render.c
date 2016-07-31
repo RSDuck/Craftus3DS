@@ -125,14 +125,15 @@ void Render_Exit() {
 }
 
 static void polygonizeWorld(World* world) {
-	int chunksUpdated = 0;
 	ChunkCache* cache = world->cache[0];
-	for (int x = 0; x < CACHE_SIZE && chunksUpdated < 4; x++) {
-		for (int z = 0; z < CACHE_SIZE && chunksUpdated < 4; z++) {
+	for (int x = 0; x < CACHE_SIZE; x++) {
+		for (int z = 0; z < CACHE_SIZE; z++) {
 			Chunk* c = cache->cache[x][z];
 			if (c->flags & ClusterFlags_VBODirty) {
-				if (BlockRender_PolygonizeChunk(world, c)) c->flags &= ~ClusterFlags_VBODirty;
-				chunksUpdated++;
+				if (BlockRender_PolygonizeChunk(world, c)) {
+					c->flags &= ~ClusterFlags_VBODirty;
+					return;
+				}
 			}
 		}
 	}
@@ -147,34 +148,34 @@ static void renderWorld(Player* player) {
 
 	ChunkCache* cache = player->cache;
 	for (int x = 0; x < CACHE_SIZE; x++) {
-		int passedZ = 0;
+		bool passedZ = false;
 		for (int z = 0; z < CACHE_SIZE; z++) {
 			Chunk* c = cache->cache[x][z];
 			float chunkX = c->x * CHUNK_WIDTH, chunkZ = c->z * CHUNK_DEPTH;
 			if (Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, 0.f, chunkX}, (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH})) {
-				int passed = 0;
-
-				C3D_BufInfo* bufInfo = C3D_GetBufInfo();
+				bool passed = false;
 
 				for (int i = 0; i < CHUNK_CLUSTER_COUNT; i++)
 					if (c->data[i].vbo && c->data[i].vertexCount) {
-						bool visible = Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, c->data[i].y * CHUNK_CLUSTER_HEIGHT, chunkX},
+						bool visible = Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, i * CHUNK_CLUSTER_HEIGHT, chunkX},
 										    (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_CLUSTER_HEIGHT, CHUNK_WIDTH});
 						if (visible) {
-							if (i > 0) printf("%d %d %d\n", i, c->data[i].y, c->data[i].vertexCount);
-							BufInfo_Init(bufInfo);
-							BufInfo_Add(bufInfo, c->data[i].vbo, sizeof(world_vertex), 3, 0x210);
+							C3D_BufInfo bufInfo;
+							BufInfo_Init(&bufInfo);
+							BufInfo_Add(&bufInfo, c->data[i].vbo, sizeof(world_vertex), 3, 0x210);
+
+							C3D_SetBufInfo(&bufInfo);
 
 							C3D_DrawArrays(GPU_TRIANGLES, 0, c->data[i].vertexCount);
 
-							passed = 1;
+							passed = true;
 						} else if (passed)
 							break;
 					}
 
 				chunksDrawn++;
 
-				passedZ = 1;
+				passedZ = true;
 			} else if (passedZ)
 				break;
 		}
