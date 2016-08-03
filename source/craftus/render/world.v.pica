@@ -11,7 +11,7 @@
 
 ; Outputs
 .out outpos position
-.out outuv	texcoord0
+; .out outuv	texcoord0
 .out outclr color
 
 ; Inputs (defined as aliases for convenience)
@@ -35,7 +35,7 @@
 
 	mov outpos, r2
 
-	mov outuv, inuv
+	; mov outuv, inuv
 
 	mul outclr, myconst.zzzy, inclr
 

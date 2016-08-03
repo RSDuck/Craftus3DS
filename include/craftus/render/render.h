@@ -11,6 +11,9 @@ void Render(Player* player);
 
 bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk);
 
+void BlockRender_Init();
+void BlockRender_Free();
+
 typedef struct {
 	float position[3];
 	float uv[2];

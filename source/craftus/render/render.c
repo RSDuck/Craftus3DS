@@ -105,9 +105,11 @@ void Render_Init() {
 	}
 
 	C3D_TexEnv* env = C3D_GetTexEnv(0);
-	C3D_TexEnvSrc(env, C3D_Both, GPU_TEXTURE0, GPU_PRIMARY_COLOR, 0);
+	C3D_TexEnvSrc(env, C3D_Both, GPU_PRIMARY_COLOR, 0, 0);
 	C3D_TexEnvOp(env, C3D_Both, 0, 0, 0);
 	C3D_TexEnvFunc(env, C3D_Both, GPU_MODULATE);
+
+	BlockRender_Init();
 
 	C3D_CullFace(GPU_CULL_BACK_CCW);
 
@@ -115,6 +117,8 @@ void Render_Init() {
 }
 
 void Render_Exit() {
+	BlockRender_Free();
+
 	C3D_TexDelete(&texture_map);
 
 	shaderProgramFree(&world_shader);

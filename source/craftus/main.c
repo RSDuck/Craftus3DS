@@ -30,6 +30,7 @@ static bool generateFlatWorld_test(ChunkWorker_Queue* queue, ChunkWorker_Task ta
 				}
 				Chunk_SetBlock(c, x, y, z, b);
 			}
+	return false;
 }
 
 ChunkWorker* cworker;
@@ -63,8 +64,8 @@ int main(int argc, char* argv[]) {
 	WorldGen_Setup(world);
 
 	cworker = ChunkWorker_New(world);
-	// ChunkWorker_AddHandler(cworker, ChunkWorker_TaskDecorateChunk, &generateFlatWorld_test, 0);
-	ChunkWorker_AddHandler(cworker, ChunkWorker_TaskDecorateChunk, &WorldGen_ChunkBaseGenerator, 0);
+	ChunkWorker_AddHandler(cworker, ChunkWorker_TaskDecorateChunk, &generateFlatWorld_test, 0);
+	// ChunkWorker_AddHandler(cworker, ChunkWorker_TaskDecorateChunk, &WorldGen_ChunkBaseGenerator, 0);
 
 	Player* player = Player_New();
 	Player_Spawn(player, world);

@@ -11,7 +11,10 @@ typedef enum {
 	Directions_Count,
 } Direction;
 
+typedef enum { Axis_X, Axis_Y, Axis_Z } Axis;
+
 extern const Direction Direction_Opposite[];
 extern const int DirectionToPosition[][3];
+extern const Axis DirectionToAxis[];
 
 #endif  // !DIRECTION_H_INCLUDED

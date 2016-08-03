@@ -100,7 +100,7 @@ void Player_Update(Player* player, u32 input, float deltaTime) {
 		    World_GetBlock(player->world, FastFloor(player->x), FastFloor(player->y) + 1, FastFloor(player->z + dz + SIGN(dz, 0.1))) == Block_Air)
 			player->z += dz;
 
-		player->bobbing += (360.f * 6.f) * DEG_TO_RAD * deltaTime;
+		player->bobbing += (360.f * 2.f) * DEG_TO_RAD * deltaTime;
 		if (player->bobbing >= 360.f * DEG_TO_RAD) player->bobbing = 0.f;  // Anti Overflow
 
 		Player_Moved(player);
