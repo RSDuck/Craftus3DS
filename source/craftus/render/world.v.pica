@@ -1,44 +1,41 @@
-; Example PICA200 vertex shader
-
-; Uniforms
-.fvec projection[4]
-.fvec modelView[4]
-
 ; Constants
 .constf myconst(0.0, 1.0, 0.00392156862, 0.001)
 .alias  zeros myconst.xxxx ; Vector full of zeros
 .alias  ones  myconst.yyyy ; Vector full of ones
 
 ; Outputs
-.out outpos position
-; .out outuv	texcoord0
-.out outclr color
+.out outoffset 	position
+.out outdu 		position
+.out outdv 		position
+.out outuv 		texcoord0
+.out outlight	color
+.out outbface	position
 
-; Inputs (defined as aliases for convenience)
-.alias inpos v0
-.alias inuv  v1
-.alias inclr v2
+; Inputs
+.alias inposxz	v0
+.alias induy	v1
+.alias indvside	v2
+.alias inuv		v3
+.alias inlight	v4
 
-.proc main
-	mov r0.xyz, inpos
-	mov r0.w,   ones
+.entry vmain
+.proc vmain
+	mov r0.x, inposxz.x
+	mov r0.y, induy.w
+	mov r0.z, inposxz.y
+	mov r0.w, ones
+	mov outoffset, r0
 
-	dp4 r1.x, modelView[0], r0
-	dp4 r1.y, modelView[1], r0
-	dp4 r1.z, modelView[2], r0
-	dp4 r1.w, modelView[3], r0
+	mov outdu.xyz, induy.xyz
+	mov outdu.w, ones
 
-	dp4 r2.x, projection[0], r1
-	dp4 r2.y, projection[1], r1
-	dp4 r2.z, projection[2], r1
-	dp4 r2.w, projection[3], r1
+	mov outdv.xyz, indvside.xyz
+	mov outdv.w, ones
 
-	mov outpos, r2
+	mul outuv, myconst.zz, inuv
+	mul outlight, myconst.zzzz, inlight
 
-	; mov outuv, inuv
+	mov outbface, indvside.wwww
 
-	mul outclr, myconst.zzzy, inclr
-
-	; We're finished
 	end
 .end

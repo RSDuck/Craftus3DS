@@ -66,16 +66,19 @@ void Render_Init() {
 	world_dvlb = DVLB_ParseFile((u32*)world_shbin, world_shbin_size);
 	shaderProgramInit(&world_shader);
 	shaderProgramSetVsh(&world_shader, &world_dvlb->DVLE[0]);
+	shaderProgramSetGsh(&world_shader, &world_dvlb->DVLE[1], 6);
 	C3D_BindProgram(&world_shader);
 
-	world_shader_uLocProjection = shaderInstanceGetUniformLocation(world_shader.vertexShader, "projection");
-	world_shader_uLocModelView = shaderInstanceGetUniformLocation(world_shader.vertexShader, "modelView");
+	world_shader_uLocProjection = shaderInstanceGetUniformLocation(world_shader.geometryShader, "projection");
+	world_shader_uLocModelView = shaderInstanceGetUniformLocation(world_shader.geometryShader, "modelView");
 
 	C3D_AttrInfo* attrInfo = C3D_GetAttrInfo();
 	AttrInfo_Init(attrInfo);
-	AttrInfo_AddLoader(attrInfo, 0, GPU_FLOAT, 3);
-	AttrInfo_AddLoader(attrInfo, 1, GPU_FLOAT, 2);
+	AttrInfo_AddLoader(attrInfo, 0, GPU_FLOAT, 2);
+	AttrInfo_AddLoader(attrInfo, 1, GPU_UNSIGNED_BYTE, 4);
 	AttrInfo_AddLoader(attrInfo, 2, GPU_UNSIGNED_BYTE, 4);
+	AttrInfo_AddLoader(attrInfo, 3, GPU_UNSIGNED_BYTE, 2);
+	AttrInfo_AddLoader(attrInfo, 4, GPU_UNSIGNED_BYTE, 4);
 
 	{
 		int w, h, fmt;
@@ -98,6 +101,7 @@ void Render_Init() {
 		C3D_TexInit(&texture_map, w, h, GPU_RGBA8);
 		C3D_TexUpload(&texture_map, gpuImg);
 		C3D_TexSetFilter(&texture_map, GPU_NEAREST, GPU_NEAREST);
+		C3D_TexSetWrap(&texture_map, GPU_REPEAT, GPU_REPEAT);
 		C3D_TexBind(0, &texture_map);
 
 		linearFree(gpuImg);
@@ -111,7 +115,7 @@ void Render_Init() {
 
 	BlockRender_Init();
 
-	C3D_CullFace(GPU_CULL_BACK_CCW);
+	// C3D_CullFace(GPU_CULL_BACK_CCW);
 
 	Camera_Init(&camera);
 }
@@ -148,7 +152,7 @@ static void renderWorld(Player* player) {
 
 	int chunksDrawn = 0;
 
-	C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocModelView, &camera.view);
+	C3D_FVUnifMtx4x4(GPU_GEOMETRY_SHADER, world_shader_uLocModelView, &camera.view);
 
 	ChunkCache* cache = player->cache;
 	for (int x = 0; x < CACHE_SIZE; x++) {
@@ -166,11 +170,11 @@ static void renderWorld(Player* player) {
 						if (visible) {
 							C3D_BufInfo bufInfo;
 							BufInfo_Init(&bufInfo);
-							BufInfo_Add(&bufInfo, c->data[i].vbo, sizeof(world_vertex), 3, 0x210);
+							BufInfo_Add(&bufInfo, c->data[i].vbo, sizeof(world_vertex), 5, 0x43210);
 
 							C3D_SetBufInfo(&bufInfo);
 
-							C3D_DrawArrays(GPU_TRIANGLES, 0, c->data[i].vertexCount);
+							C3D_DrawArrays(GPU_GEOMETRY_PRIM, 0, c->data[i].vertexCount);
 
 							passed = true;
 						} else if (passed)
@@ -195,7 +199,7 @@ void Render(Player* player) {
 	float iod = osGet3DSliderState() / 3.f;
 
 	Camera_Update(&camera, player, -iod);
-	C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocProjection, &camera.projection);
+	C3D_FVUnifMtx4x4(GPU_GEOMETRY_SHADER, world_shader_uLocProjection, &camera.projection);
 
 	renderWorld(player);
 
@@ -203,7 +207,7 @@ void Render(Player* player) {
 		C3D_FrameDrawOn(rightTarget);
 
 		Camera_Update(&camera, player, iod);
-		C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocProjection, &camera.projection);
+		C3D_FVUnifMtx4x4(GPU_GEOMETRY_SHADER, world_shader_uLocProjection, &camera.projection);
 
 		renderWorld(player);
 	}

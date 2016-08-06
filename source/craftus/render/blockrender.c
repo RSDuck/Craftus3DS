@@ -8,68 +8,6 @@
 
 #include "vec/vec.h"
 
-static const world_vertex cube_sides_lut[] = {
-    // First face (PZ)
-    // First triangle
-    {{-0.5f, -0.5f, +0.5f}, {0.0f, 0.0f}, {255, 255, 255, 255}},
-    {{+0.5f, -0.5f, +0.5f}, {1.0f, 0.0f}, {255, 255, 255, 255}},
-    {{+0.5f, +0.5f, +0.5f}, {1.0f, 1.0f}, {255, 255, 255, 255}},
-    // Second triangle
-    {{+0.5f, +0.5f, +0.5f}, {1.0f, 1.0f}, {255, 255, 255, 255}},
-    {{-0.5f, +0.5f, +0.5f}, {0.0f, 1.0f}, {255, 255, 255, 255}},
-    {{-0.5f, -0.5f, +0.5f}, {0.0f, 0.0f}, {255, 255, 255, 255}},
-
-    // Second face (MZ)
-    // First triangle
-    {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}, {255, 255, 255, 255}},
-    {{-0.5f, +0.5f, -0.5f}, {1.0f, 1.0f}, {255, 255, 255, 255}},
-    {{+0.5f, +0.5f, -0.5f}, {0.0f, 1.0f}, {255, 255, 255, 255}},
-    // Second triangle
-    {{+0.5f, +0.5f, -0.5f}, {0.0f, 1.0f}, {255, 255, 255, 255}},
-    {{+0.5f, -0.5f, -0.5f}, {0.0f, 0.0f}, {255, 255, 255, 255}},
-    {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}, {255, 255, 255, 255}},
-
-    // Third face (PX)
-    // First triangle
-    {{+0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}, {255, 255, 255, 255}},
-    {{+0.5f, +0.5f, -0.5f}, {1.0f, 1.0f}, {255, 255, 255, 255}},
-    {{+0.5f, +0.5f, +0.5f}, {0.0f, 1.0f}, {255, 255, 255, 255}},
-    // Second triangle
-    {{+0.5f, +0.5f, +0.5f}, {0.0f, 1.0f}, {255, 255, 255, 255}},
-    {{+0.5f, -0.5f, +0.5f}, {0.0f, 0.0f}, {255, 255, 255, 255}},
-    {{+0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}, {255, 255, 255, 255}},
-
-    // Fourth face (MX)
-    // First triangle
-    {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f}, {255, 255, 255, 255}},
-    {{-0.5f, -0.5f, +0.5f}, {1.0f, 0.0f}, {255, 255, 255, 255}},
-    {{-0.5f, +0.5f, +0.5f}, {1.0f, 1.0f}, {255, 255, 255, 255}},
-    // Second triangle
-    {{-0.5f, +0.5f, +0.5f}, {1.0f, 1.0f}, {255, 255, 255, 255}},
-    {{-0.5f, +0.5f, -0.5f}, {0.0f, 1.0f}, {255, 255, 255, 255}},
-    {{-0.5f, -0.5f, -0.5f}, {0.0f, 0.0f}, {255, 255, 255, 255}},
-
-    // Fifth face (PY)
-    // First triangle
-    {{-0.5f, +0.5f, -0.5f}, {0.0f, 1.0f}, {255, 255, 255, 255}},
-    {{-0.5f, +0.5f, +0.5f}, {0.0f, 0.0f}, {255, 255, 255, 255}},
-    {{+0.5f, +0.5f, +0.5f}, {1.0f, 0.0f}, {255, 255, 255, 255}},
-    // Second triangle
-    {{+0.5f, +0.5f, +0.5f}, {1.0f, 0.0f}, {255, 255, 255, 255}},
-    {{+0.5f, +0.5f, -0.5f}, {1.0f, 1.0f}, {255, 255, 255, 255}},
-    {{-0.5f, +0.5f, -0.5f}, {0.0f, 1.0f}, {255, 255, 255, 255}},
-
-    // Sixth face (MY)
-    // First triangle
-    {{-0.5f, -0.5f, -0.5f}, {0.0f, 1.0f}, {255, 255, 255, 255}},
-    {{+0.5f, -0.5f, -0.5f}, {1.0f, 1.0f}, {255, 255, 255, 255}},
-    {{+0.5f, -0.5f, +0.5f}, {1.0f, 0.0f}, {255, 255, 255, 255}},
-    // Second triangle
-    {{+0.5f, -0.5f, +0.5f}, {1.0f, 0.0f}, {255, 255, 255, 255}},
-    {{-0.5f, -0.5f, +0.5f}, {0.0f, 0.0f}, {255, 255, 255, 255}},
-    {{-0.5f, -0.5f, -0.5f}, {0.0f, 1.0f}, {255, 255, 255, 255}},
-};
-
 typedef struct {
 	u8 x, y, z, sideAO, size;
 	Block block;
@@ -87,20 +25,6 @@ const int aoTable[Directions_Count][4][3] = {
     {{0, 1, 0}, {0, -1, 0}, {-1, 0, 0}, {1, 0, 0}}, {{0, 1, 0}, {0, -1, 0}, {-1, 0, 0}, {1, 0, 0}}, {{0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}},
     {{0, 1, 0}, {0, -1, 0}, {0, 0, -1}, {0, 0, 1}}, {{0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}}, {{0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}},
 };
-
-static inline void setPosition(world_vertex* vtx, C3D_FVec* vec) {
-	vtx->position[0] = vec->x;
-	vtx->position[1] = vec->y;
-	vtx->position[2] = vec->z;
-}
-
-static inline void writeVtx(world_vertex* vtx, C3D_FVec* pos) {
-	setPosition(vtx, pos);
-	vtx->color[0] = 255;
-	vtx->color[1] = 255;
-	vtx->color[2] = 255;
-	vtx->color[3] = 255;
-}
 
 typedef struct {
 	Block blockType;
@@ -297,14 +221,12 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 
 										const int vertOrder[2][6] = {{0, 1, 2, 3, 0, 2}, {0, 3, 2, 1, 0, 2}};
 
-										world_vertex vtx;
-										for (l = 0; l < 6; l++) {
-											writeVtx(&vtx, &verts[vertOrder[backFace][l]]);
-											vtx.color[2] -= side * mask[n].blockType * 5;
-											vtx.color[1] -= side * mask[n].blockType * 5;
+										uint8_t brightness[4] = {255, 255, 255, 255};
 
-											vec_push(&vertexlist, vtx);
-										}
+										world_vertex vtx = world_vertex_create(worldOffset.x + x[0], worldOffset.y + x[1],
+														       worldOffset.z + x[2], backFace, du, dv, 0, 0, brightness);
+
+										vec_push(&vertexlist, vtx);
 									}
 
 									/*
