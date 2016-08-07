@@ -1,41 +1,35 @@
 ; Constants
 .constf myconst(0.0, 1.0, 0.00392156862, 0.001)
-.alias  zeros myconst.xxxx ; Vector full of zeros
-.alias  ones  myconst.yyyy ; Vector full of ones
+.alias  zeros 	myconst.xxxx ; Vector full of zeros
+.alias  ones  	myconst.yyyy ; Vector full of ones
+.alias	div255	myconst.zzzz
 
 ; Outputs
-.out outoffset 	position
-.out outdu 		position
-.out outdv 		position
-.out outuv 		texcoord0
-.out outlight	color
-.out outbface	position
+.out out_pointA			position
+.out out_pointB			position
+.out out_uvOffset		texcoord0
+.out out_brightness		color
 
 ; Inputs
-.alias inposxz	v0
-.alias induy	v1
-.alias indvside	v2
-.alias inuv		v3
-.alias inlight	v4
+.alias in_offset 		v0
+.alias in_pointA 		v1
+.alias in_pointB 		v2
+.alias in_uvOffset 		v3
+.alias in_brightness	v4
 
 .entry vmain
 .proc vmain
-	mov r0.x, inposxz.x
-	mov r0.y, induy.w
-	mov r0.z, inposxz.y
-	mov r0.w, ones
-	mov outoffset, r0
+	mov r0, zeros
+	mov r0.x, in_offset.x
+	mov r0.z, in_offset.y
 
-	mov outdu.xyz, induy.xyz
-	mov outdu.w, ones
+	add out_pointA.xyz, in_pointA, r0
+	mov out_pointA.w, ones
+	add out_pointB.xyz, in_pointB, r0
+	mov out_pointB.w, ones
 
-	mov outdv.xyz, indvside.xyz
-	mov outdv.w, ones
-
-	mul outuv, myconst.zz, inuv
-	mul outlight, myconst.zzzz, inlight
-
-	mov outbface, indvside.wwww
+	mul out_uvOffset, div255, in_uvOffset
+	mul out_brightness, div255, in_brightness
 
 	end
 .end

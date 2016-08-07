@@ -213,18 +213,35 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 										    FVec3(chunk->x * CHUNK_WIDTH, cluster->y * CHUNK_CLUSTER_HEIGHT, chunk->z * CHUNK_DEPTH);
 
 										C3D_FVec verts[4];
-										verts[0] = FVec_Add(FVec3(x[0], x[1], x[2]), worldOffset);			    // bottomLeft
-										verts[1] = FVec_Add(FVec3(x[0] + du[0], x[1] + du[1], x[2] + du[2]), worldOffset);  // topLeft
-										verts[2] = FVec_Add(FVec3(x[0] + du[0] + dv[0], x[1] + du[1] + dv[1], x[2] + du[2] + dv[2]),
-												    worldOffset);						    // topRight
-										verts[3] = FVec_Add(FVec3(x[0] + dv[0], x[1] + dv[1], x[2] + dv[2]), worldOffset);  // bottomRight
+										verts[0] = FVec_Add(FVec3(x[0], x[1], x[2]), worldOffset);			    // vorne links
+										verts[1] = FVec_Add(FVec3(x[0] + du[0], x[1] + du[1], x[2] + du[2]), worldOffset);  // vorne rechts
+										verts[2] = FVec_Add(
+										    FVec3(x[0] + du[0] + dv[0], x[1] + du[1] + dv[1], x[2] + du[2] + dv[2]),  // hinten rechts
+										    worldOffset);
+										verts[3] = FVec_Add(FVec3(x[0] + dv[0], x[1] + dv[1], x[2] + dv[2]), worldOffset);  // hinten links
 
 										const int vertOrder[2][6] = {{0, 1, 2, 3, 0, 2}, {0, 3, 2, 1, 0, 2}};
 
 										uint8_t brightness[4] = {255, 255, 255, 255};
 
-										world_vertex vtx = world_vertex_create(worldOffset.x + x[0], worldOffset.y + x[1],
-														       worldOffset.z + x[2], backFace, du, dv, 0, 0, brightness);
+										world_vertex vtx;
+										vtx.offset[0] = worldOffset.x;
+										vtx.offset[1] = worldOffset.z;
+
+										vtx.brightness[0] = 255;
+										vtx.brightness[1] = 255;
+										vtx.brightness[2] = 255;
+										vtx.brightness[3] = 255;
+
+										vtx.uvOffset[0] = 0;
+										vtx.uvOffset[1] = 0;
+
+										for (l = 0; l < 3; l++) {
+											vtx.pointA[l] = x[l];
+											vtx.pointB[l] = x[l] + du[l] + dv[l];
+										}
+										vtx.pointA[1] += (uint8_t)worldOffset.y;
+										vtx.pointB[1] += (uint8_t)worldOffset.y;
 
 										vec_push(&vertexlist, vtx);
 									}
@@ -260,6 +277,9 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 				printf("Empty cluster\n");
 				cluster->flags &= ~ClusterFlags_VBODirty;
 				continue;
+			}
+			if (cluster->vertexCount > 6) {
+				printf("Cluster Vtx >6 %d, %d, %d\n", chunk->x, cluster->y, chunk->z);
 			}
 
 			int vboSizeMinimum = vertexlist.length * sizeof(world_vertex);
