@@ -66,7 +66,7 @@ void Render_Init() {
 	world_dvlb = DVLB_ParseFile((u32*)world_shbin, world_shbin_size);
 	shaderProgramInit(&world_shader);
 	shaderProgramSetVsh(&world_shader, &world_dvlb->DVLE[0]);
-	shaderProgramSetGsh(&world_shader, &world_dvlb->DVLE[1], 4);
+	shaderProgramSetGsh(&world_shader, &world_dvlb->DVLE[1], 5);
 	C3D_BindProgram(&world_shader);
 
 	world_shader_uLocProjection = shaderInstanceGetUniformLocation(world_shader.geometryShader, "projection");
@@ -74,11 +74,12 @@ void Render_Init() {
 
 	C3D_AttrInfo* attrInfo = C3D_GetAttrInfo();
 	AttrInfo_Init(attrInfo);
-	AttrInfo_AddLoader(attrInfo, 0, GPU_FLOAT, 2);
+	AttrInfo_AddLoader(attrInfo, 0, GPU_SHORT, 2);
 	AttrInfo_AddLoader(attrInfo, 1, GPU_UNSIGNED_BYTE, 3);
 	AttrInfo_AddLoader(attrInfo, 2, GPU_UNSIGNED_BYTE, 3);
 	AttrInfo_AddLoader(attrInfo, 3, GPU_UNSIGNED_BYTE, 2);
 	AttrInfo_AddLoader(attrInfo, 4, GPU_UNSIGNED_BYTE, 4);
+	AttrInfo_AddLoader(attrInfo, 5, GPU_UNSIGNED_BYTE, 4);
 
 	{
 		int w, h, fmt;
@@ -115,7 +116,7 @@ void Render_Init() {
 
 	BlockRender_Init();
 
-	C3D_CullFace(GPU_CULL_NONE);
+	C3D_CullFace(GPU_CULL_BACK_CCW);
 
 	Camera_Init(&camera);
 }
@@ -170,7 +171,7 @@ static void renderWorld(Player* player) {
 						if (visible) {
 							C3D_BufInfo bufInfo;
 							BufInfo_Init(&bufInfo);
-							BufInfo_Add(&bufInfo, c->data[i].vbo, sizeof(world_vertex), 5, 0x43210);
+							BufInfo_Add(&bufInfo, c->data[i].vbo, sizeof(world_vertex), 6, 0x543210);
 
 							C3D_SetBufInfo(&bufInfo);
 

@@ -13,13 +13,13 @@
 .out out_position	position
 ; .out outuv	    texcoord0
 .out out_color		color
-; .out out_normal		normal
 
 ; Inputs
 .alias in_pointA		v0
 .alias in_pointB		v1
 .alias in_uvOffset		v2
 .alias in_brightness	v3
+.alias in_backface		v4
 
 .entry gmain
 .proc gmain
@@ -35,7 +35,7 @@
 	mov r0, in_pointA
 	mov r1, in_pointA
 
-	cmp in_pointA.y, eq, eq, in_pointB.y
+	cmp r0.y, eq, eq, in_pointB.y
 	ifc cmp.x
 		mov r0.x, in_pointB.x
 		mov r1.z, in_pointB.z
@@ -44,14 +44,7 @@
 		mov r1.y, in_pointB.y
 	.end
 
-	; Kreuzprodukt
-	;mov r4, in_pointB
-	;mul r2.xyz, in_pointA.yzx, r4.zxy
-	;mul r3.xyz, in_pointA.zxy, r4.yzx
-	;sub r4, r2, r3
-	;dp3 r2, ones, r4
-	;rsq r3, r2
-
+	cmp ones.x, gt, gt, in_backface.x
 
 	setemit 0
 	mov r10, in_pointA
@@ -69,7 +62,11 @@
 	mov out_color.w, ones
 	emit
 
-	setemit 2, prim
+	ifc cmp.x
+		setemit 2, inv prim
+	.else
+		setemit 2, prim
+	.end
 	mov r10, in_pointB
 	call processVertex
 
@@ -78,7 +75,7 @@
 	emit
 	
 	setemit 0
-	mov r10, in_pointA
+	mov r10, r1
 	call processVertex
 
 	mov out_color.xyz, in_brightness.xxx
@@ -86,15 +83,19 @@
 	emit
 
 	setemit 1
-	mov r10, in_pointB
+	mov r10, in_pointA
 	call processVertex
 
 	mov out_color.xyz, in_brightness.zzz
 	mov out_color.w, ones
 	emit
 
-	setemit 2, prim
-	mov r10, r1
+	ifc cmp.x
+		setemit 2, inv prim
+	.else
+		setemit 2, prim
+	.end	
+	mov r10, in_pointB
 	call processVertex
 
 	mov out_color.xyz, in_brightness.www

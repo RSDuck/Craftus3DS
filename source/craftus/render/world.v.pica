@@ -9,6 +9,7 @@
 .out out_pointB			position
 .out out_uvOffset		texcoord0
 .out out_brightness		color
+.out out_normal			position
 
 ; Inputs
 .alias in_offset 		v0
@@ -16,6 +17,7 @@
 .alias in_pointB 		v2
 .alias in_uvOffset 		v3
 .alias in_brightness	v4
+.alias in_backface		v5
 
 .entry vmain
 .proc vmain
@@ -30,6 +32,8 @@
 
 	mul out_uvOffset, div255, in_uvOffset
 	mul out_brightness, div255, in_brightness
+
+	mov out_normal, in_backface
 
 	end
 .end

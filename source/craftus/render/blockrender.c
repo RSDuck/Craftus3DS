@@ -31,7 +31,8 @@ typedef struct {
 	uint8_t faceAO;
 } VoxelFace;
 
-static inline bool VoxelFaces_Equal(VoxelFace a, VoxelFace b) { return a.blockType == b.blockType && a.faceAO >> 4 == b.faceAO >> 4; }
+static inline bool VoxelFaces_Equal(VoxelFace a, VoxelFace b) { return a.blockType == b.blockType && (a.faceAO & 0xF0) == (b.faceAO & 0xF0); }
+
 static inline VoxelFace VoxelFace_Get(Cluster* cluster, int x, int y, int z, Direction side) { return (VoxelFace){cluster->blocks[x][y][z], side}; }
 
 static vec_t(world_vertex) vertexlist;
@@ -109,7 +110,7 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 					} else if (d == 1) {
 						side = backFace ? Direction_Bottom : Direction_Top;
 					} else if (d == 2) {
-						side = backFace ? Direction_Front : Direction_Back;
+						side = backFace ? Direction_Back : Direction_Front;
 					}
 
 					/*
@@ -128,9 +129,22 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 								/*
 								 * Here we retrieve two voxel faces for comparison.
 								 */
-								voxelFace = (x[d] >= 0) ? VoxelFace_Get(cluster, x[0], x[1], x[2], side) : (VoxelFace){0, 0};
-								voxelFace1 = (x[d] < CHUNK_WIDTH - 1) ? VoxelFace_Get(cluster, x[0] + q[0], x[1] + q[1], x[2] + q[2], side)
-												      : (VoxelFace){0, 0};
+								voxelFace = (x[d] >= 0) ? VoxelFace_Get(cluster, x[0], x[1], x[2], side)
+											: (VoxelFace){fastBlockFetch(world, chunk, cluster, x[0], x[1], x[2]), side};
+								voxelFace1 = (x[d] < CHUNK_WIDTH - 1)
+										 ? VoxelFace_Get(cluster, x[0] + q[0], x[1] + q[1], x[2] + q[2], side)
+										 : (VoxelFace){fastBlockFetch(world, chunk, cluster, x[0] + q[0], x[1] + q[1], x[2] + q[2]), side};
+
+								const int* dir = DirectionToPosition[side];
+								/*for (l = 0; l < 4; l++) {
+									const int* off = aoTable[side][l];
+									if (fastBlockFetch(world, chunk, cluster, x[0] + dir[0] + off[0], x[1] + dir[1] + off[1],
+											   x[2] + dir[2] + off[2]) != Block_Air)
+										voxelFace.faceAO |= 1 << (4 + l);
+									if (fastBlockFetch(world, chunk, cluster, x[0] + q[0] + dir[0] + off[0], x[1] + q[1] + dir[1] + off[1],
+											   x[2] + q[2] + dir[2] + off[2]) != Block_Air)
+										voxelFace.faceAO |= 1 << (4 + l);
+								}*/
 
 								/*
 								 * Note that we're using the equals function in the voxel face class here, which lets the faces
@@ -222,16 +236,24 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 
 										const int vertOrder[2][6] = {{0, 1, 2, 3, 0, 2}, {0, 3, 2, 1, 0, 2}};
 
-										uint8_t brightness[4] = {255, 255, 255, 255};
-
 										world_vertex vtx;
-										vtx.offset[0] = worldOffset.x;
-										vtx.offset[1] = worldOffset.z;
+										vtx.offset[0] = (int16_t)worldOffset.x;
+										vtx.offset[1] = (int16_t)worldOffset.z;
 
-										vtx.brightness[0] = 255;
-										vtx.brightness[1] = 255;
-										vtx.brightness[2] = 255;
-										vtx.brightness[3] = 255;
+										bool aoLeft = !!(mask[n].faceAO & AOSide_Left);
+										bool aoRight = !!(mask[n].faceAO & AOSide_Right);
+										bool aoTop = !!(mask[n].faceAO & AOSide_Top);
+										bool aoBottom = !!(mask[n].faceAO & AOSide_Bottom);
+
+										/*vtx.brightness[0] = 255 - aoLeft * 50 - aoBottom * 50;
+										vtx.brightness[1] = 255 - aoBottom * 50 - aoRight * 50;
+										vtx.brightness[2] = 255 - aoRight * 50 - aoTop * 50;
+										vtx.brightness[3] = 255 - aoTop * 50 - aoLeft * 50;*/
+
+										vtx.brightness[0] = 255 - (side * 15);
+										vtx.brightness[0] = 255 - (side * 15);
+										vtx.brightness[0] = 255 - (side * 15);
+										vtx.brightness[0] = 255 - (side * 15);
 
 										vtx.uvOffset[0] = 0;
 										vtx.uvOffset[1] = 0;
@@ -242,6 +264,8 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 										}
 										vtx.pointA[1] += (uint8_t)worldOffset.y;
 										vtx.pointB[1] += (uint8_t)worldOffset.y;
+
+										vtx.backfaceNormal[0] = d == 2 ? !backFace : backFace;
 
 										vec_push(&vertexlist, vtx);
 									}
@@ -275,11 +299,8 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 
 			if (!cluster->vertexCount) {
 				printf("Empty cluster\n");
-				cluster->flags &= ~ClusterFlags_VBODirty;
+				cluster->flags = (cluster->flags & ~ClusterFlags_VBODirty) | ClusterFlags_Empty;
 				continue;
-			}
-			if (cluster->vertexCount > 6) {
-				printf("Cluster Vtx >6 %d, %d, %d\n", chunk->x, cluster->y, chunk->z);
 			}
 
 			int vboSizeMinimum = vertexlist.length * sizeof(world_vertex);

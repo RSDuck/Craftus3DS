@@ -30,7 +30,8 @@ static bool generateFlatWorld_test(ChunkWorker_Queue* queue, ChunkWorker_Task ta
 				}
 				Chunk_SetBlock(c, x, y, z, b);
 			}*/
-	Chunk_SetBlock(c, 0, 0, 0, Block_Stone);
+	for (int x = 0; x < CHUNK_WIDTH; x++)
+		for (int z = 0; z < CHUNK_DEPTH; z++) Chunk_SetBlock(c, x, 0, z, Block_Stone);
 	return false;
 }
 
