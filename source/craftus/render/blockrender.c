@@ -8,11 +8,6 @@
 
 #include "vec/vec.h"
 
-typedef struct {
-	u8 x, y, z, sideAO, size;
-	Block block;
-} Side;
-
 static inline Block fastBlockFetch(World* world, Chunk* chunk, Cluster* cluster, int x, int y, int z) {
 	return (x < 0 || y < 0 || z < 0 || x >= CHUNK_WIDTH || y >= CHUNK_CLUSTER_HEIGHT || z >= CHUNK_DEPTH)
 		   ? World_GetBlock(world, (chunk->x * CHUNK_WIDTH) + x, (cluster->y * CHUNK_CLUSTER_HEIGHT) + y, (chunk->z * CHUNK_DEPTH) + z)
@@ -26,300 +21,85 @@ const int aoTable[Directions_Count][4][3] = {
     {{0, 1, 0}, {0, -1, 0}, {0, 0, -1}, {0, 0, 1}}, {{0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}}, {{0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}},
 };
 
-typedef struct {
-	Block blockType;
-	uint8_t faceAO;
-} VoxelFace;
+static const uint8_t diagTable[Directions_Count][3] = {{1, 1, 0}, {1, 1, 0}, {0, 1, 1}, {0, 1, 1}, {1, 0, 1}, {1, 0, 1}};
+static const uint8_t sideOffset[Directions_Count][3] = {{0, 0, 0}, {0, 0, -1}, {1, 0, 0}, {0, 0, 0}, {1, 0, 0}, {0, 0, 0}};
 
-static inline bool VoxelFaces_Equal(VoxelFace a, VoxelFace b) { return a.blockType == b.blockType && (a.faceAO & 0xF0) == (b.faceAO & 0xF0); }
+static vec_t(world_vertex) tmpSides;
 
-static inline VoxelFace VoxelFace_Get(Cluster* cluster, int x, int y, int z, Direction side) { return (VoxelFace){cluster->blocks[x][y][z], side}; }
+void BlockRender_Init() { vec_init(&tmpSides); }
 
-static vec_t(world_vertex) vertexlist;
-static VoxelFace* mask;
-
-void BlockRender_Init() {
-	vec_init(&vertexlist);
-	mask = malloc(sizeof(VoxelFace) * CHUNK_WIDTH * CHUNK_DEPTH);
-}
-
-void BlockRender_Free() {
-	vec_deinit(&vertexlist);
-	free(mask);
-}
+void BlockRender_Free() { vec_deinit(&tmpSides); }
 
 bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 	if (chunk->flags & ClusterFlags_InProcess) return false;
 
+	int16_t chunkOffX = chunk->x * CHUNK_WIDTH;
+	int16_t chunkOffZ = chunk->z * CHUNK_DEPTH;
 	for (Cluster* cluster = chunk->data; cluster < chunk->data + CHUNK_CLUSTER_COUNT; cluster++) {
 		if (cluster->flags & ClusterFlags_VBODirty) {
-			vec_clear(&vertexlist);
+			vec_clear(&tmpSides);
+			uint8_t clusterY = cluster->y * CHUNK_CLUSTER_HEIGHT;
 
-			memset(mask, 0, sizeof(VoxelFace) * CHUNK_WIDTH * CHUNK_DEPTH);
+			world_vertex side;
+			for (int x = 0; x < CHUNK_WIDTH; x++)
+				for (int z = 0; z < CHUNK_DEPTH; z++)
+					for (int y = 0; y < CHUNK_CLUSTER_HEIGHT; y++) {
+						if (cluster->blocks[x][y][z] != Block_Air) {
+							for (int j = 0; j < Directions_Count; j++) {
+								const int* pos = DirectionToPosition[j];
+								const uint8_t* diag = diagTable[j];
+								const uint8_t* sideOff = sideOffset[j];
+								int backface = ~(pos[0] + pos[1] + pos[2]) + 1;
 
-			int i, j, k, l, w, h, u, v, n, side = 0;
+								if (fastBlockFetch(world, chunk, cluster, x + pos[0], y + pos[1], z + pos[2]) == Block_Air) {
+									side = (world_vertex){
+									    chunkOffX,
+									    chunkOffZ,
+									    {x + sideOff[0], y + clusterY + sideOff[1], z + sideOff[2]},
+									    {x + diag[0] + sideOff[0], y + clusterY + diag[1] + sideOff[1], z + diag[2] + sideOff[2]},
+									    {0, 0},
+									    {255, 255, 255, 255},
+									    {backface, 0, 0, 0}};
 
-			int x[] = {0, 0, 0};
-			int q[] = {0, 0, 0};
-			int du[] = {0, 0, 0};
-			int dv[] = {0, 0, 0};
-
-			/*
-			 * We create a mask - this will contain the groups of matching voxel faces
-			 * as we proceed through the chunk in 6 directions - once for each face.
-			 */
-
-			/*
-			 * These are just working variables to hold two faces during comparison.
-			 */
-			VoxelFace voxelFace, voxelFace1;
-
-			/**
-			 * We start with the lesser-spotted boolean for-loop (also known as the old flippy floppy).
-			 *
-			 * The variable backFace will be TRUE on the first iteration and FALSE on the second - this allows
-			 * us to track which direction the indices should run during creation of the quad.
-			 *
-			 * This loop runs twice, and the inner loop 3 times - totally 6 iterations - one for each
-			 * voxel face.
-			 */
-			for (bool backFace = true, b = false; b != backFace; backFace = backFace && b, b = !b) {
-				/*
-				 * We sweep over the 3 dimensions - most of what follows is well described by Mikola Lysenko
-				 * in his post - and is ported from his Javascript implementation.  Where this implementation
-				 * diverges, I've added commentary.
-				 */
-				for (int d = 0; d < 3; d++) {
-					u = (d + 1) % 3;
-					v = (d + 2) % 3;
-
-					x[0] = 0;
-					x[1] = 0;
-					x[2] = 0;
-
-					q[0] = 0;
-					q[1] = 0;
-					q[2] = 0;
-					q[d] = 1;
-
-					/*
-					 * Here we're keeping track of the side that we're meshing.
-					 */
-					if (d == 0) {
-						side = backFace ? Direction_Right : Direction_Left;
-					} else if (d == 1) {
-						side = backFace ? Direction_Bottom : Direction_Top;
-					} else if (d == 2) {
-						side = backFace ? Direction_Back : Direction_Front;
-					}
-
-					/*
-					 * We move through the dimension from front to back
-					 */
-					for (x[d] = -1; x[d] < CHUNK_WIDTH;) {
-						/*
-						 * -------------------------------------------------------------------
-						 *   We compute the mask
-						 * -------------------------------------------------------------------
-						 */
-						n = 0;
-
-						for (x[v] = 0; x[v] < CHUNK_CLUSTER_HEIGHT; x[v]++) {
-							for (x[u] = 0; x[u] < CHUNK_WIDTH; x[u]++) {
-								/*
-								 * Here we retrieve two voxel faces for comparison.
-								 */
-								voxelFace = (x[d] >= 0) ? VoxelFace_Get(cluster, x[0], x[1], x[2], side)
-											: (VoxelFace){fastBlockFetch(world, chunk, cluster, x[0], x[1], x[2]), side};
-								voxelFace1 = (x[d] < CHUNK_WIDTH - 1)
-										 ? VoxelFace_Get(cluster, x[0] + q[0], x[1] + q[1], x[2] + q[2], side)
-										 : (VoxelFace){fastBlockFetch(world, chunk, cluster, x[0] + q[0], x[1] + q[1], x[2] + q[2]), side};
-
-								const int* dir = DirectionToPosition[side];
-								/*for (l = 0; l < 4; l++) {
-									const int* off = aoTable[side][l];
-									if (fastBlockFetch(world, chunk, cluster, x[0] + dir[0] + off[0], x[1] + dir[1] + off[1],
-											   x[2] + dir[2] + off[2]) != Block_Air)
-										voxelFace.faceAO |= 1 << (4 + l);
-									if (fastBlockFetch(world, chunk, cluster, x[0] + q[0] + dir[0] + off[0], x[1] + q[1] + dir[1] + off[1],
-											   x[2] + q[2] + dir[2] + off[2]) != Block_Air)
-										voxelFace.faceAO |= 1 << (4 + l);
-								}*/
-
-								/*
-								 * Note that we're using the equals function in the voxel face class here, which lets the faces
-								 * be compared based on any number of attributes.
-								 *
-								 * Also, we choose the face to add to the mask depending on whether we're moving through on a backface or not.
-								 */
-								mask[n++] = ((voxelFace.blockType != 0 && voxelFace.blockType != 0 && VoxelFaces_Equal(voxelFace, voxelFace1)))
-										? (VoxelFace){0, 0}
-										: backFace ? voxelFace1 : voxelFace;
-							}
-						}
-
-						x[d]++;
-
-						/*
-						 * Now we generate the mesh for the mask
-						 */
-						n = 0;
-
-						for (j = 0; j < CHUNK_CLUSTER_HEIGHT; j++) {
-							for (i = 0; i < CHUNK_WIDTH;) {
-								if (mask[n].blockType != 0) {
-									/*
-									 * We compute the width
-									 */
-									for (w = 1; i + w < CHUNK_WIDTH && mask[n + w].blockType != 0 && VoxelFaces_Equal(mask[n + w], mask[n]);
-									     w++) {
-									}
-
-									/*
-									 * Then we compute height
-									 */
-									bool done = false;
-
-									for (h = 1; j + h < CHUNK_CLUSTER_HEIGHT; h++) {
-										for (k = 0; k < w; k++) {
-											if (mask[n + k + h * CHUNK_WIDTH].blockType != 0 ||
-											    !VoxelFaces_Equal(mask[n + k + h * CHUNK_WIDTH], mask[n])) {
-												done = true;
-												break;
-											}
-										}
-
-										if (done) {
-											break;
+									// sides[sideCurrent] = (Side){x, y, z, j, cluster->blocks[x][y][z]};
+									for (int k = 0; k < 4; k++) {
+										const int* aoOffset = aoTable[j][k];
+										if (fastBlockFetch(world, chunk, cluster, x + pos[0] + aoOffset[0], y + pos[1] + aoOffset[1],
+												   z + pos[2] + aoOffset[2]) != Block_Air) {
+											side.brightness[k] -= 20;
 										}
 									}
-
-									/*
-									 * Here we check the "transparent" attribute in the VoxelFace class to ensure that we don't mesh
-									 * any culled faces.
-									 */
-									if (/*!mask[n].transparent*/ true) {
-										/*
-										 * Add quad
-										 */
-										x[u] = i;
-										x[v] = j;
-
-										du[0] = 0;
-										du[1] = 0;
-										du[2] = 0;
-										du[u] = w;
-
-										dv[0] = 0;
-										dv[1] = 0;
-										dv[2] = 0;
-										dv[v] = h;
-
-										/*
-										 * And here we call the quad function in order to render a merged quad in the scene.
-										 *
-										 * We pass mask[n] to the function, which is an instance of the VoxelFace class containing
-										 * all the attributes of the face - which allows for variables to be passed to shaders - for
-										 * example lighting values used to create ambient occlusion.
-										 */
-
-										C3D_FVec worldOffset =
-										    FVec3(chunk->x * CHUNK_WIDTH, cluster->y * CHUNK_CLUSTER_HEIGHT, chunk->z * CHUNK_DEPTH);
-
-										C3D_FVec verts[4];
-										verts[0] = FVec_Add(FVec3(x[0], x[1], x[2]), worldOffset);			    // vorne links
-										verts[1] = FVec_Add(FVec3(x[0] + du[0], x[1] + du[1], x[2] + du[2]), worldOffset);  // vorne rechts
-										verts[2] = FVec_Add(
-										    FVec3(x[0] + du[0] + dv[0], x[1] + du[1] + dv[1], x[2] + du[2] + dv[2]),  // hinten rechts
-										    worldOffset);
-										verts[3] = FVec_Add(FVec3(x[0] + dv[0], x[1] + dv[1], x[2] + dv[2]), worldOffset);  // hinten links
-
-										const int vertOrder[2][6] = {{0, 1, 2, 3, 0, 2}, {0, 3, 2, 1, 0, 2}};
-
-										world_vertex vtx;
-										vtx.offset[0] = (int16_t)worldOffset.x;
-										vtx.offset[1] = (int16_t)worldOffset.z;
-
-										bool aoLeft = !!(mask[n].faceAO & AOSide_Left);
-										bool aoRight = !!(mask[n].faceAO & AOSide_Right);
-										bool aoTop = !!(mask[n].faceAO & AOSide_Top);
-										bool aoBottom = !!(mask[n].faceAO & AOSide_Bottom);
-
-										/*vtx.brightness[0] = 255 - aoLeft * 50 - aoBottom * 50;
-										vtx.brightness[1] = 255 - aoBottom * 50 - aoRight * 50;
-										vtx.brightness[2] = 255 - aoRight * 50 - aoTop * 50;
-										vtx.brightness[3] = 255 - aoTop * 50 - aoLeft * 50;*/
-
-										vtx.brightness[0] = 255 - (side * 15);
-										vtx.brightness[0] = 255 - (side * 15);
-										vtx.brightness[0] = 255 - (side * 15);
-										vtx.brightness[0] = 255 - (side * 15);
-
-										vtx.uvOffset[0] = 0;
-										vtx.uvOffset[1] = 0;
-
-										for (l = 0; l < 3; l++) {
-											vtx.pointA[l] = x[l];
-											vtx.pointB[l] = x[l] + du[l] + dv[l];
-										}
-										vtx.pointA[1] += (uint8_t)worldOffset.y;
-										vtx.pointB[1] += (uint8_t)worldOffset.y;
-
-										vtx.backfaceNormal[0] = d == 2 ? !backFace : backFace;
-
-										vec_push(&vertexlist, vtx);
-									}
-
-									/*
-									 * We zero out the mask
-									 */
-									for (l = 0; l < h; ++l) {
-										for (k = 0; k < w; ++k) {
-											mask[n + k + l * CHUNK_WIDTH] = (VoxelFace){0};
-										}
-									}
-
-									/*
-									 * And then finally increment the counters and continue
-									 */
-									i += w;
-									n += w;
-
-								} else {
-									i++;
-									n++;
+									vec_push(&tmpSides, side);
 								}
 							}
 						}
 					}
-				}
-			}
 
-			cluster->vertexCount = vertexlist.length;
-
-			if (!cluster->vertexCount) {
-				printf("Empty cluster\n");
+			int vboBytestNeeded = sizeof(world_vertex) * tmpSides.length;
+			if (!vboBytestNeeded) {
+				cluster->vertexCount = 0;
 				cluster->flags = (cluster->flags & ~ClusterFlags_VBODirty) | ClusterFlags_Empty;
 				continue;
 			}
 
-			int vboSizeMinimum = vertexlist.length * sizeof(world_vertex);
-			if (!cluster->vbo || cluster->vboSize == 0) {
-				cluster->vbo = linearAlloc(vboSizeMinimum + 64 * sizeof(world_vertex));
-				cluster->vboSize = vboSizeMinimum + 64 * sizeof(world_vertex);
-			} else if (cluster->vboSize < vboSizeMinimum) {
+			if (cluster->vbo == NULL || cluster->vboSize == 0) {
+				cluster->vbo = linearAlloc(vboBytestNeeded + (sizeof(world_vertex) * 16));
+				cluster->vboSize = vboBytestNeeded;
+			} else if (cluster->vboSize < vboBytestNeeded) {
 				linearFree(cluster->vbo);
-				cluster->vbo = linearAlloc(vboSizeMinimum + 64 * sizeof(world_vertex));
-				cluster->vboSize = vboSizeMinimum + 64 * sizeof(world_vertex);
+				cluster->vbo = linearAlloc(vboBytestNeeded + (sizeof(world_vertex) * 24));
+				cluster->vboSize = vboBytestNeeded;
 			}
-			memcpy(cluster->vbo, vertexlist.data, vboSizeMinimum);
-			printf("Made %d vertices\n", vertexlist.length);
+			if (!cluster->vbo) printf("VBO allocation failed\n");
+
+			memcpy(cluster->vbo, tmpSides.data, vboBytestNeeded);
+
+			cluster->vertexCount = tmpSides.length;
+			chunk->vertexCount += tmpSides.length;
 
 			cluster->flags &= ~ClusterFlags_VBODirty;
 		}
 	}
-
-	vec_deinit(&vertexlist);
 
 	return true;
 }

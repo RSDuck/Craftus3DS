@@ -44,7 +44,7 @@
 		mov r1.y, in_pointB.y
 	.end
 
-	cmp ones.x, gt, gt, in_backface.x
+	; cmp zeros.x, gt, gt, in_backface.x
 
 	setemit 0
 	mov r10, in_pointA
@@ -62,11 +62,11 @@
 	mov out_color.w, ones
 	emit
 
-	ifc cmp.x
-		setemit 2, inv prim
-	.else
+	;ifc cmp.x
 		setemit 2, prim
-	.end
+	;.else
+	;	setemit 2, prim
+	;.end
 	mov r10, in_pointB
 	call processVertex
 
@@ -90,11 +90,11 @@
 	mov out_color.w, ones
 	emit
 
-	ifc cmp.x
-		setemit 2, inv prim
-	.else
+	;ifc cmp.x
+	;	setemit 2, inv prim
+	;.else
 		setemit 2, prim
-	.end	
+	;.end	
 	mov r10, in_pointB
 	call processVertex
 
