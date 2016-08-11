@@ -92,6 +92,7 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 	for (int i = 0; i < CHUNK_CLUSTER_COUNT; i++) {
 		Cluster* cluster = &chunk->data[i];
 		if (cluster->flags & ClusterFlags_VBODirty) {
+			int blocksNotAir = 0;
 #define MAX_SIDES (6 * (CHUNK_WIDTH * CHUNK_CLUSTER_HEIGHT * CHUNK_DEPTH / 2))
 			static Side sides[MAX_SIDES];
 			int sideCurrent = 0;
@@ -100,6 +101,7 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 				for (int z = 0; z < CHUNK_DEPTH; z++)
 					for (int y = 0; y < CHUNK_CLUSTER_HEIGHT; y++) {
 						if (cluster->blocks[x][y][z] != Block_Air) {
+							blocksNotAir++;
 							for (int j = 0; j < Directions_Count; j++) {
 								const int* pos = DirectionToPosition[j];
 
@@ -124,19 +126,17 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 			if (!vboBytestNeeded) {
 				cluster->vertexCount = 0;
 				cluster->flags &= ~ClusterFlags_VBODirty;
-				cluster->flags |= ClusterFlags_Empty;
+				if (blocksNotAir) cluster->flags |= ClusterFlags_Empty;
 				continue;
 			}
 
 			if (cluster->vbo == NULL || cluster->vboSize == 0) {
-				// printf("%d Allocating lin heap\n", chunk->x + chunk->z + cluster->y);
-				cluster->vbo = linearAlloc(vboBytestNeeded + (sizeof(world_vertex) * 64));
-				cluster->vboSize = vboBytestNeeded;
+				cluster->vbo = linearAlloc(vboBytestNeeded + (sizeof(world_vertex) * 24));
+				cluster->vboSize = vboBytestNeeded + (sizeof(world_vertex) * 24);
 			} else if (cluster->vboSize < vboBytestNeeded) {
-				// printf("%d Freeing and then allocating lin heap\n", chunk->x + chunk->z + cluster->y);
 				linearFree(cluster->vbo);
-				cluster->vbo = linearAlloc(vboBytestNeeded + (sizeof(world_vertex) * 64));
-				cluster->vboSize = vboBytestNeeded;
+				cluster->vbo = linearAlloc(vboBytestNeeded + (sizeof(world_vertex) * 24));
+				cluster->vboSize = vboBytestNeeded + (sizeof(world_vertex) * 24);
 			}
 			if (!cluster->vbo) printf("VBO allocation failed\n");
 
