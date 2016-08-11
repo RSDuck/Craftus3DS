@@ -99,14 +99,14 @@ void Render_Init() {
 		C3D_TexUpload(&texture_map, gpuImg);
 		C3D_TexSetFilter(&texture_map, GPU_NEAREST, GPU_NEAREST);
 		C3D_TexSetWrap(&texture_map, GPU_REPEAT, GPU_REPEAT);
-		// C3D_TexBind(0, &texture_map);
+		C3D_TexBind(0, &texture_map);
 
 		linearFree(gpuImg);
 		stbi_image_free(image);
 	}
 
 	C3D_TexEnv* env = C3D_GetTexEnv(0);
-	C3D_TexEnvSrc(env, C3D_Both, GPU_PRIMARY_COLOR, 0, 0);
+	C3D_TexEnvSrc(env, C3D_Both, GPU_TEXTURE0, GPU_PRIMARY_COLOR, 0);
 	C3D_TexEnvOp(env, C3D_Both, 0, 0, 0);
 	C3D_TexEnvFunc(env, C3D_Both, GPU_MODULATE);
 
