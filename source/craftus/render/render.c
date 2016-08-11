@@ -66,20 +66,16 @@ void Render_Init() {
 	world_dvlb = DVLB_ParseFile((u32*)world_shbin, world_shbin_size);
 	shaderProgramInit(&world_shader);
 	shaderProgramSetVsh(&world_shader, &world_dvlb->DVLE[0]);
-	shaderProgramSetGsh(&world_shader, &world_dvlb->DVLE[1], 5);
+	// shaderProgramSetGsh(&world_shader, &world_dvlb->DVLE[1], 5);
 	C3D_BindProgram(&world_shader);
 
-	world_shader_uLocProjection = shaderInstanceGetUniformLocation(world_shader.geometryShader, "projection");
-	world_shader_uLocModelView = shaderInstanceGetUniformLocation(world_shader.geometryShader, "modelView");
+	world_shader_uLocProjection = shaderInstanceGetUniformLocation(world_shader.vertexShader, "projection");
+	world_shader_uLocModelView = shaderInstanceGetUniformLocation(world_shader.vertexShader, "modelView");
 
 	C3D_AttrInfo* attrInfo = C3D_GetAttrInfo();
 	AttrInfo_Init(attrInfo);
 	AttrInfo_AddLoader(attrInfo, 0, GPU_SHORT, 2);
-	AttrInfo_AddLoader(attrInfo, 1, GPU_UNSIGNED_BYTE, 3);
-	AttrInfo_AddLoader(attrInfo, 2, GPU_UNSIGNED_BYTE, 3);
-	AttrInfo_AddLoader(attrInfo, 3, GPU_UNSIGNED_BYTE, 2);
-	AttrInfo_AddLoader(attrInfo, 4, GPU_UNSIGNED_BYTE, 4);
-	AttrInfo_AddLoader(attrInfo, 5, GPU_UNSIGNED_BYTE, 4);
+	AttrInfo_AddLoader(attrInfo, 1, GPU_UNSIGNED_BYTE, 4);
 
 	{
 		int w, h, fmt;
@@ -110,11 +106,9 @@ void Render_Init() {
 	}
 
 	C3D_TexEnv* env = C3D_GetTexEnv(0);
-	C3D_TexEnvSrc(env, C3D_Both, GPU_PRIMARY_COLOR, 0, 0);
+	C3D_TexEnvSrc(env, C3D_Both, GPU_TEXTURE0, GPU_PRIMARY_COLOR, 0);
 	C3D_TexEnvOp(env, C3D_Both, 0, 0, 0);
 	C3D_TexEnvFunc(env, C3D_Both, GPU_MODULATE);
-
-	BlockRender_Init();
 
 	C3D_CullFace(GPU_CULL_BACK_CCW);
 
@@ -122,8 +116,6 @@ void Render_Init() {
 }
 
 void Render_Exit() {
-	BlockRender_Free();
-
 	C3D_TexDelete(&texture_map);
 
 	shaderProgramFree(&world_shader);
@@ -153,29 +145,39 @@ static void renderWorld(Player* player) {
 
 	int chunksDrawn = 0;
 
-	C3D_FVUnifMtx4x4(GPU_GEOMETRY_SHADER, world_shader_uLocModelView, &camera.view);
+	C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocModelView, &camera.view);
+
+	const int turnTable[4][2] = {{-1, 0}, {0, -1}, {1, 0}, {0, 1}};
 
 	ChunkCache* cache = player->cache;
-	for (int x = 0; x < CACHE_SIZE; x++) {
-		bool passedZ = false;
-		for (int z = 0; z < CACHE_SIZE; z++) {
-			Chunk* c = cache->cache[x][z];
+
+	int yStart = (int)player->y / CHUNK_CLUSTER_HEIGHT;
+
+	int length = 1;
+	int pX = CACHE_SIZE / 2, pZ = CACHE_SIZE / 2;
+	int sX = 0, sZ = 1;
+	int flipper = 2;
+	int turn = 0;
+	int totalTurn = 0;
+	while (true) {  // Zeichnet die Chunks in Schlangenform und dadurch automatisch die vordersten zuerst
+		for (int i = 0; i < length; i++) {
+			Chunk* c = cache->cache[pX][pZ];
 			float chunkX = c->x * CHUNK_WIDTH, chunkZ = c->z * CHUNK_DEPTH;
 			if (Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, 0.f, chunkX}, (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH})) {
 				bool passed = false;
 
-				for (int i = 0; i < CHUNK_CLUSTER_COUNT; i++)
-					if (c->data[i].vbo && c->data[i].vertexCount) {
-						bool visible = Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, i * CHUNK_CLUSTER_HEIGHT, chunkX},
+				for (int j = 0; j < CHUNK_CLUSTER_COUNT; j++)
+					if (c->data[j].vbo && c->data[j].vertexCount) {
+						bool visible = Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, j * CHUNK_CLUSTER_HEIGHT, chunkX},
 										    (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_CLUSTER_HEIGHT, CHUNK_WIDTH});
 						if (visible) {
 							C3D_BufInfo bufInfo;
 							BufInfo_Init(&bufInfo);
-							BufInfo_Add(&bufInfo, c->data[i].vbo, sizeof(world_vertex), 6, 0x543210);
+							BufInfo_Add(&bufInfo, c->data[j].vbo, sizeof(world_vertex), 2, 0x10);
 
 							C3D_SetBufInfo(&bufInfo);
 
-							C3D_DrawArrays(GPU_GEOMETRY_PRIM, 0, c->data[i].vertexCount);
+							C3D_DrawArrays(GPU_TRIANGLES, 0, c->data[j].vertexCount);
 
 							passed = true;
 						} else if (passed)
@@ -183,11 +185,21 @@ static void renderWorld(Player* player) {
 					}
 
 				chunksDrawn++;
+			}
 
-				passedZ = true;
-			} else if (passedZ)
-				break;
+			pX += sX;
+			pZ += sZ;
 		}
+		sX = turnTable[turn][0];
+		sZ = turnTable[turn][1];
+		if (length == CACHE_SIZE) break;
+		if (!(--flipper)) {
+			length++;
+			flipper = 2;
+		}
+		if (++turn >= 4) turn = 0;
+
+		totalTurn++;
 	}
 }
 
@@ -200,7 +212,7 @@ void Render(Player* player) {
 	float iod = osGet3DSliderState() / 3.f;
 
 	Camera_Update(&camera, player, -iod);
-	C3D_FVUnifMtx4x4(GPU_GEOMETRY_SHADER, world_shader_uLocProjection, &camera.projection);
+	C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocProjection, &camera.projection);
 
 	renderWorld(player);
 
@@ -208,7 +220,7 @@ void Render(Player* player) {
 		C3D_FrameDrawOn(rightTarget);
 
 		Camera_Update(&camera, player, iod);
-		C3D_FVUnifMtx4x4(GPU_GEOMETRY_SHADER, world_shader_uLocProjection, &camera.projection);
+		C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocProjection, &camera.projection);
 
 		renderWorld(player);
 	}

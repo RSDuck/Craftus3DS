@@ -13,16 +13,9 @@ void Render(Player* player);
 
 bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk);
 
-void BlockRender_Init();
-void BlockRender_Free();
-
 typedef struct {
-	int16_t offset[2];  // XZ Offset
-	uint8_t pointA[3];
-	uint8_t pointB[3];
-	uint8_t uvOffset[2];
-	uint8_t brightness[4];
-	uint8_t backfaceNormal[4];  // Backface, Normal XYZ
+	int16_t xz[2];
+	uint8_t yuvb[4];
 } world_vertex;
 
 #endif  // !RENDER_H_INCLUDED

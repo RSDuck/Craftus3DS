@@ -4,36 +4,39 @@
 .alias  ones  	myconst.yyyy ; Vector full of ones
 .alias	div255	myconst.zzzz
 
+; Uniforms
+.fvec projection[4]
+.fvec modelView[4]
+
 ; Outputs
-.out out_pointA			position
-.out out_pointB			position
-.out out_uvOffset		texcoord0
-.out out_brightness		color
-.out out_normal			position
+.out out_position		position
+.out out_color			color
+.out out_uv				texcoord0
 
 ; Inputs
-.alias in_offset 		v0
-.alias in_pointA 		v1
-.alias in_pointB 		v2
-.alias in_uvOffset 		v3
-.alias in_brightness	v4
-.alias in_backface		v5
+.alias in_xz		v0
+.alias in_yuvb 		v1
 
 .entry vmain
 .proc vmain
-	mov r0, zeros
-	mov r0.x, in_offset.x
-	mov r0.z, in_offset.y
+	mov r0.xz, in_xz.xy
+	mov r0.y, in_yuvb.x
+	mov r0.w, ones
 
-	add out_pointA.xyz, in_pointA, r0
-	mov out_pointA.w, ones
-	add out_pointB.xyz, in_pointB, r0
-	mov out_pointB.w, ones
+	dp4 r1.x, modelView[0], r0
+	dp4 r1.y, modelView[1], r0
+	dp4 r1.z, modelView[2], r0
+	dp4 r1.w, modelView[3], r0
 
-	mul out_uvOffset, div255, in_uvOffset
-	mul out_brightness, div255, in_brightness
+	dp4 out_position.x, projection[0], r1
+	dp4 out_position.y, projection[1], r1
+	dp4 out_position.z, projection[2], r1
+	dp4 out_position.w, projection[3], r1
 
-	mov out_normal, in_backface
+	mul out_uv, div255, in_yuvb.yz
+
+	mul out_color.xyz, div255, in_yuvb.www
+	mov out_color.w, ones
 
 	end
 .end
