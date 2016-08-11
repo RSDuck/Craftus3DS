@@ -1,7 +1,7 @@
 # Craftus
 Craftus in a Minecraft clone for Nintendo 3DS(and not a continuation of 3DSCraft by smea). 
 
-![Some screenshot](https://raw.githubusercontent.com/RSDuck/Craftus3DS/master/zscreenshots/scr_22_TOP_LEFT.png)
+![Some screenshot](https://github.com/RSDuck/Craftus3DS/raw/master/zscreenshots/scr_41_TOP_LEFT.png)
 ![Another screenshot](https://raw.githubusercontent.com/RSDuck/Craftus3DS/master/zscreenshots/scr_23_TOP_LEFT.png)
 
 ## Features!
