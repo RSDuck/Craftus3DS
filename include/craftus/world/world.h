@@ -101,6 +101,8 @@ typedef struct {
 	pool chunkpool;
 	ChunkVec loadedChunks;
 
+	Chunk* afterLife[CACHE_SIZE * 4];
+
 	int errFlags;
 } World;
 
@@ -116,5 +118,7 @@ Chunk* World_GetChunk(World* world, int x, int z);
 void World_UnloadChunk(World* world, int x, int z);
 
 void World_Profile(World* world);
+
+void World_FreeChunk(World* world, Chunk* chunk);
 
 #endif  // !WORLD_H_INCLUDED

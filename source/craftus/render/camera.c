@@ -6,7 +6,7 @@ void Camera_Init(Camera* cam) {
 	Mtx_Identity(&cam->view);
 
 	cam->fov = 70.f * M_PI / 180.f;
-	cam->near = 0.01f, cam->far = 1000.f;
+	cam->near = 0.01f, cam->far = 100.f;
 
 	Mtx_PerspTilt(&cam->projection, cam->fov, 400.f / 240.f, cam->near, cam->far, false);
 }
@@ -53,21 +53,6 @@ bool Camera_IsPointVisible(Camera* cam, C3D_FVec point) {
 #include <stdio.h>
 
 bool Camera_IsAABBVisible(Camera* cam, C3D_FVec orgin, C3D_FVec size) {
-	/*int in, out;
-	for (int i = 0; i < 6; i++) {
-		out = 0, in = 0;
-		for (int j = 0; j < 8 && (!in || !out); j++) {
-			C3D_FVec point = FVec4_Add(orgin, FVec_Mul(box[j], size));
-			point.w = 1.f;
-			if (FVec_DP3(&point, &cam->frustumPlanes[i]) <= 0.f)
-				out++;
-			else
-				in++;
-
-			if (!in) return false;
-		}
-	}
-	return true;*/
 	float x = orgin.x, y = orgin.y, z = orgin.z;
 	C3D_FVec* frustum = cam->frustumPlanes;
 	int p;

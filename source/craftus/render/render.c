@@ -9,6 +9,7 @@
 
 #include "craftus/render/render.h"
 
+#include "craftus/render/texture.h"
 #include "craftus/world/direction.h"
 #include "craftus/world/world.h"
 #include "craftus/entity/player.h"
@@ -32,25 +33,6 @@ static Camera camera;
 static C3D_Tex texture_map;
 
 static C3D_RenderTarget *target, *rightTarget;
-
-/*
-Both of these(morton_interleave and get_morton_offset) seem to be more or less triple stolen from here: https://fgiesen.wordpress.com/2009/12/13/decoding-morton-codes/
-I have them from sf2dlib
-*/
-static inline u32 morton_interleave(u32 x, u32 y) {
-	u32 i = (x & 7) | ((y & 7) << 8);  // ---- -210
-	i = (i ^ (i << 2)) & 0x1313;       // ---2 --10
-	i = (i ^ (i << 1)) & 0x1515;       // ---2 -1-0
-	i = (i | (i >> 7)) & 0x3F;
-	return i;
-}
-
-// Grabbed from Citra Emulator (citra/src/video_core/utils.h)
-static inline u32 get_morton_offset(u32 x, u32 y, u32 bytes_per_pixel) {
-	u32 i = morton_interleave(x, y);
-	unsigned int offset = (x & ~7) * 8;
-	return (i + offset) * bytes_per_pixel;
-}
 
 void Render_Init() {
 	gfxSet3D(true);
@@ -79,40 +61,14 @@ void Render_Init() {
 	AttrInfo_AddLoader(attrInfo, 0, GPU_SHORT, 2);
 	AttrInfo_AddLoader(attrInfo, 1, GPU_UNSIGNED_BYTE, 4);
 
-	{
-		int w, h, fmt;
-		u8* image = stbi_load("romfs:/textures/sprites.png", &w, &h, &fmt, 4);
-
-		u8* gpuImg = linearAlloc(w * h * 4);
-
-		for (int j = 0; j < h + 16; j++) {  // TODO: Herausfinden warum + 16 hilft
-			for (int i = 0; i < w; i++) {
-				u32 coarse_y = j & ~7;
-				u32 dst_offset = get_morton_offset(i, j, 4) + coarse_y * w * 4;
-
-				u32 v = ((u32*)image)[i + (w * j)];
-				*(u32*)(gpuImg + dst_offset) = __builtin_bswap32(v); /* RGBA8 -> ABGR8 */
-			}
-		}
-
-		GSPGPU_FlushDataCache(gpuImg, w * h * 4);
-
-		C3D_TexInit(&texture_map, w, h, GPU_RGBA8);
-		C3D_TexUpload(&texture_map, gpuImg);
-		C3D_TexSetFilter(&texture_map, GPU_NEAREST, GPU_NEAREST);
-		C3D_TexSetWrap(&texture_map, GPU_REPEAT, GPU_REPEAT);
-		C3D_TexBind(0, &texture_map);
-
-		linearFree(gpuImg);
-		stbi_image_free(image);
-	}
-
 	C3D_TexEnv* env = C3D_GetTexEnv(0);
 	C3D_TexEnvSrc(env, C3D_Both, GPU_PRIMARY_COLOR, 0, 0);
 	C3D_TexEnvOp(env, C3D_Both, 0, 0, 0);
 	C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
 
 	Camera_Init(&camera);
+
+	Texture_Load(&texture_map, "romfs:/textures/sprites.png");
 
 	extern world_vertex cube_sides_lut[36];  // Richtig schlechter stil. Ich muss dagegen noch was unternehmen
 
@@ -219,7 +175,14 @@ static void drawWorld(Player* player) {
 	// printf("%d Chunks drawn", chunksDrawn);
 }
 
+static void drawCrossHair() {}
+
 static void drawCursor(Player* player) {
+	C3D_TexEnv* env = C3D_GetTexEnv(0);
+	C3D_TexEnvSrc(env, C3D_Both, GPU_PRIMARY_COLOR, 0, 0);
+	C3D_TexEnvOp(env, C3D_Both, 0, 0, 0);
+	C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
+
 	C3D_Mtx modelView, modelMatrix;
 	Mtx_Identity(&modelMatrix);
 	Mtx_Translate(&modelMatrix, player->seightX, player->seightY, player->seightZ, true);
@@ -229,11 +192,6 @@ static void drawCursor(Player* player) {
 	C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocModelView, &modelView);
 
 	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ONE, GPU_ONE, GPU_ONE);
-
-	C3D_TexEnv* env = C3D_GetTexEnv(0);
-	C3D_TexEnvSrc(env, C3D_Both, GPU_PRIMARY_COLOR, 0, 0);
-	C3D_TexEnvOp(env, C3D_Both, 0, 0, 0);
-	C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
 
 	C3D_BufInfo bufInfo;
 	BufInfo_Init(&bufInfo);

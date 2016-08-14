@@ -23,6 +23,8 @@ World* World_New() {
 	poolInitialize(&world->chunkpool, sizeof(Chunk), CACHE_SIZE * CACHE_SIZE);
 	vec_init(&world->loadedChunks);
 
+	for (int i = 0; i < CACHE_SIZE * 2; i++) world->afterLife[i] = NULL;
+
 	return world;
 }
 
@@ -40,6 +42,8 @@ void World_Profile(World* world) {
 	printf("GC Cache Capacity: %d | Length %d\n", world->loadedChunks.capacity, world->loadedChunks.length);
 }
 
+void World_EnterAfterLive() {}
+
 extern ChunkWorker* cworker;
 Chunk* World_GetChunk(World* world, int x, int z) {
 	Chunk* chunk;
@@ -49,6 +53,15 @@ Chunk* World_GetChunk(World* world, int x, int z) {
 			chunk->referenced++;
 			return chunk;
 		}
+	for (i = 0; i < CACHE_SIZE * 4; i++)
+		if (world->afterLife[i] != NULL)
+			if (world->afterLife[i]->x == x && world->afterLife[i]->z == z) {
+				Chunk* chunk = world->afterLife[i];
+				world->afterLife[i] = NULL;
+				chunk->referenced = 1;
+				// printf("Fetched chunk from afterlife\n");
+				return chunk;
+			}
 
 	// Make a new one
 	chunk = poolMalloc(&world->chunkpool);
@@ -65,18 +78,43 @@ Chunk* World_GetChunk(World* world, int x, int z) {
 	return chunk;
 }
 
+void World_FreeChunk(World* world, Chunk* chunk) {
+	for (int j = 0; j < CHUNK_CLUSTER_COUNT; j++) linearFree(chunk->data[j].vbo);
+	poolFree(&world->chunkpool, chunk);
+}
+
 void World_ReleaseChunk(World* world, int x, int z) {
 	Chunk* chunk;
 	int i;
 	vec_foreach (&world->loadedChunks, chunk, i)
 		if (chunk->x == x && chunk->z == z)
 			if (--chunk->referenced == 0) {
-				for (int j = 0; j < CHUNK_CLUSTER_COUNT; j++) linearFree(chunk->data[j].vbo);
-				poolFree(&world->chunkpool, chunk);
 				vec_splice(&world->loadedChunks, i, 1);
+				for (int j = 0; j < CACHE_SIZE * 4; j++) {
+					if (world->afterLife[j] == NULL) {
+						world->afterLife[j] = chunk;
+						// printf("Put chunk into afterlife\n");
+						break;
+					}
+				}
 
 				return;
 			}
+}
+
+void World_ClearAfterLife(World* world) {
+	for (int i = 0; i < CACHE_SIZE * 2; i++) {
+		if (world->afterLife[i] != NULL) {
+			if (world->afterLife[i]->referenced < -2) {  // -2 ist richtig
+				if (!(world->afterLife[i]->flags & ClusterFlags_InProcess)) World_FreeChunk(world, world->afterLife[i]);
+				world->afterLife[i] = NULL;
+				// printf("Freed chunk in after life\n");
+			} else {
+				world->afterLife[i]->referenced--;
+				// printf("Decreased chunk counter in afterlife %d\n", world->afterLife[i]->referenced);
+			}
+		}
+	}
 }
 
 void World_Tick(World* world) {
@@ -119,6 +157,8 @@ void World_Tick(World* world) {
 #undef CACHE_AXIS
 
 		cache->where = cache->updatedWhere;
+
+		World_ClearAfterLife(world);
 	}
 }
 

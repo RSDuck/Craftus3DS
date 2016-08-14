@@ -1,7 +1,6 @@
 #include "craftus/world/blocks.h"
 
 void Blocks_GetUVs(Block block, Direction side, uint8_t* out) {
-	const int texOffset = 256 / 4;
 	switch (block) {
 		case Block_Air:
 			break;
@@ -30,6 +29,6 @@ void Blocks_GetUVs(Block block, Direction side, uint8_t* out) {
 			}
 			break;
 	}
-	out[0] *= texOffset;
-	out[1] *= texOffset;
+	out[0] = (((out[0] * 16) + (out[0] * 2)) * 2);
+	out[1] = (((out[1] * 16) + (out[1] * 2)) * 2);
 }

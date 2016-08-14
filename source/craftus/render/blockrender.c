@@ -6,6 +6,50 @@
 
 #include <stdio.h>
 
+const world_vertex altModel[] = {
+    // First face
+    // Erstes Dreieck
+    {{0, 0}, {0, 0, 0, 255}},
+    {{1, 1}, {0, 1, 0, 255}},
+    {{1, 1}, {1, 1, 1, 255}},
+    // Zweites Dreieck
+    {{1, 1}, {1, 1, 1, 255}},
+    {{0, 0}, {1, 0, 1, 255}},
+    {{0, 0}, {0, 0, 0, 255}},
+
+    // Zweites face(Rückseite)
+    // Erstes Dreieck
+    {{1, 1}, {0, 1, 0, 255}},
+    {{0, 0}, {0, 0, 0, 255}},
+    {{1, 1}, {1, 1, 1, 255}},
+
+    // Zweites Dreieck
+    {{1, 1}, {1, 1, 1, 255}},
+    {{0, 0}, {0, 0, 0, 255}},
+    {{0, 0}, {1, 0, 1, 255}},
+
+    // Drittes face
+    // erstes Dreieck
+    {{1, 0}, {0, 0, 0, 255}},
+    {{0, 1}, {0, 1, 0, 255}},
+    {{0, 1}, {1, 1, 1, 255}},
+    // Zweites Dreieck
+    {{0, 1}, {1, 1, 1, 255}},
+    {{1, 0}, {1, 0, 1, 255}},
+    {{0, 0}, {0, 0, 0, 255}},
+
+    // Viertes face
+    // erstes dreeck
+    {{1, 0}, {0, 0, 0, 255}},
+    {{0, 1}, {1, 1, 1, 255}},
+    {{0, 1}, {0, 1, 0, 255}},
+
+    // Zweites Dreieck
+    {{0, 1}, {1, 1, 1, 255}},
+    {{0, 0}, {0, 0, 0, 255}},
+    {{1, 0}, {1, 0, 1, 255}},
+};
+
 const world_vertex cube_sides_lut[] = {
     // First face (PZ)
     // First triangle
@@ -93,11 +137,9 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 		Cluster* cluster = &chunk->data[i];
 		if (cluster->flags & ClusterFlags_VBODirty) {
 			int blocksNotAir = 0;
-#define MAX_SIDES (4 * (CHUNK_WIDTH * CHUNK_CLUSTER_HEIGHT * CHUNK_DEPTH / 2))
+#define MAX_SIDES (6 * (CHUNK_WIDTH * CHUNK_CLUSTER_HEIGHT * CHUNK_DEPTH / 2))
 			static Side sides[MAX_SIDES];
-			static Side sidesMipMap[MAX_SIDES];
 			int sideCurrent = 0;
-			int mipMappedSideCurrent = 0;
 
 			for (int x = 0; x < CHUNK_WIDTH; x++)
 				for (int z = 0; z < CHUNK_DEPTH; z++)
@@ -120,32 +162,6 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 									}
 									sideCurrent++;
 								}
-							}
-						}
-						if (x % 4 == 0 && z % 4 == 0 && y % 4 == 0) {
-							Block blocksOccured[256] = {0};
-							int highestID = 0;
-							for (int i = 0; i < 4; i++)
-								for (int j = 0; j < 4; j++)
-									for (int k = 0; k < 4; k++) {
-										Block block = cluster->blocks[x + i][y + j][z + k];
-										blocksOccured[block]++;
-										highestID = (block > highestID) ? block : highestID;
-									}
-
-							int highestOccurence = 0;
-							Block mostFrequentBlock = Block_Air;
-							for (int i = 0; i < highestID; i++) {
-								int occurence = blocksOccured[i];
-								if (occurence > highestOccurence) {
-									highestOccurence = occurence;
-									mostFrequentBlock = i;
-								}
-							}
-							if (mostFrequentBlock) {
-								sidesMipMap[mipMappedSideCurrent] = (Side){x, y, z};
-
-								mipMappedSideCurrent++;
 							}
 						}
 					}
@@ -172,8 +188,7 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 
 			world_vertex* ptr = (world_vertex*)cluster->vbo;
 
-			const int oneDivIconsPerRow = 256 / 4;
-			const int halfTexel = /*1.f / (64.f * 8.f)*/ 256 / 128;
+			const int oneDivIconsPerRow = 256 / 7;
 
 			int16_t clusterX = (chunk->x * CHUNK_WIDTH);
 			uint8_t clusterY = (cluster->y * CHUNK_CLUSTER_HEIGHT);
@@ -211,8 +226,8 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 						ptr[k].yuvb[3] -= 55;
 					}
 
-					ptr[k].yuvb[1] = (ptr[k].yuvb[1] == 1 ? (oneDivIconsPerRow - halfTexel) : halfTexel) + blockUV[0];
-					ptr[k].yuvb[2] = (ptr[k].yuvb[2] == 1 ? (oneDivIconsPerRow - halfTexel) : halfTexel) + blockUV[1];
+					ptr[k].yuvb[1] = (ptr[k].yuvb[1] == 1 ? (oneDivIconsPerRow)) + blockUV[0];
+					ptr[k].yuvb[2] = (ptr[k].yuvb[2] == 1 ? (oneDivIconsPerRow)) + blockUV[1];
 
 					// printf("%f, %f\n", ptr[k].uv[0], ptr[k].uv[1]);
 				}
@@ -220,19 +235,8 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 				ptr += 6;
 				vertexCount += 6;
 			}
-			// GX_FlushCacheRegions((u32*)cluster->vbo, (u32)cluster->vboSize, NULL, 0, NULL, 0);
 
 			cluster->vertexCount = vertexCount;
-
-			/*{
-				FILE* f = fopen("vertdump.txt", "a");
-				fprintf(f, "Cluster: %d %d %d Verts: %d\n", chunk->x, cluster->y, chunk->z, cluster->vertexCount);
-				world_vertex* ptr = (world_vertex*)cluster->vbo;
-				for (int j = 0; j < sideCurrent; j++, ptr++) {
-					fprintf(f, "%f, %f, %f\t\n", ptr->position[0], ptr->position[1], ptr->position[2]);
-				}
-				fclose(f);
-			}*/
 
 			cluster->flags &= ~ClusterFlags_VBODirty;
 		}

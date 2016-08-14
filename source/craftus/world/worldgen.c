@@ -41,17 +41,18 @@ bool WorldGen_ChunkBaseGenerator(ChunkWorker_Queue* queue, ChunkWorker_Task task
 		for (int z = 0; z < CHUNK_DEPTH; z++) {
 			int lutAdr = x / 4;
 			float subrangeX = (float)(x % 4) * 0.25f, subrangeZ = (float)(z % 4) * 0.25f;
-			float v = snoise2(&setup.permTable, (offsetX + x) * 0.05f, (offsetZ + z) * 0.05f) * 10.f;
+			float v = snoise2(&setup.permTable, (offsetX + x) * 0.05f, (offsetZ + z) * 0.05f) * 16.f;
 			for (int y = 0; y < (int)v + WORLDGEN_SEALEVEL; y++) {
 				if (y > WORLDGEN_SEALEVEL - 24) {
 					float v2 = snoise3(&setup.permTable, (offsetX + x + 10) * 0.025f, (float)y * 0.1f, (offsetZ + z + 10) * 0.025f);
-					if (v2 * 10.f > 0.5f) {
+					if (v2 * 10.f > 0.2f) {
 						Chunk_SetBlock(task.chunk, x, y, z, Block_Stone);
 					}
 				} else
 					Chunk_SetBlock(task.chunk, x, y, z, Block_Stone);
 			}
 
+			// Mit Grass und Erde füllen
 			Block previousBlock = Block_Air;
 			for (int y = (int)v + WORLDGEN_SEALEVEL + 1; y > WORLDGEN_SEALEVEL - 10; y--) {
 				Block block = Chunk_GetBlock(task.chunk, x, y, z);

@@ -9,7 +9,7 @@
 
 #define CHUNKWORKER_THREAD_STACKSIZE (4 * 1024)
 
-typedef enum { ChunkWorker_TaskOpenChunk, ChunkWorker_TaskSaveChunk, ChunkWorker_TaskDecorateChunk, ChunkWorker_TaskTypeCount } ChunkWorker_TaskType;
+typedef enum { ChunkWorker_TaskOpenChunk, ChunkWorker_TaskSaveChunk, ChunkWorker_TaskDecorateChunk, ChunkWorker_PolygonizeChunk, ChunkWorker_TaskTypeCount } ChunkWorker_TaskType;
 typedef struct {
 	ChunkWorker_TaskType type;
 	Chunk* chunk;

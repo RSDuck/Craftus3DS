@@ -5,18 +5,15 @@ Craftus in a Minecraft clone for Nintendo 3DS(and not a continuation of 3DSCraft
 ![Another screenshot](https://raw.githubusercontent.com/RSDuck/Craftus3DS/master/zscreenshots/scr_23_TOP_LEFT.png)
 
 ## Features!
-* A world which is theoretically infinite
-* Super exciting super flat worlds
+* A world which is theoretically infinite which looks a little bit like a landscape
 * Stereo 3D
-* Making every block in direct sight line to stone(so almost building and breaking blocks)
+* Building and placing blocks
 * Ambient Occlusion(these shadows in the edges between the cubes)
 
 ## Upcoming features
-* Building and breaking blocks
 * A hand and a crosshair
-* A even more exciting world generation with hills and maybe some trees
+* Trees, water, stuff that makes landscapes interesting
 * Saving and opening worlds
-* Some more optimiziation to let the game run on O3DS with 3D enabled with stable 30-40 FPS
 * (Maybe) support for Minecraft Ressourcepacks or atleast a custom format and a converter for PC
 
 ## License
