@@ -133,7 +133,7 @@ void World_SetBlock(World* world, int x, int y, int z, Block block) {
 			world->errFlags |= World_ErrLockedBlockRequested;
 			return;
 		}
-		world->errFlags &= ~(World_ErrLockedBlockRequested);
+		world->errFlags &= ~World_ErrLockedBlockRequested;
 		Chunk_SetBlock(cache->cache[chunkX][chunkZ], lX, y, lZ, block);
 
 		int clusterY = y / CHUNK_CLUSTER_HEIGHT;
@@ -141,6 +141,9 @@ void World_SetBlock(World* world, int x, int y, int z, Block block) {
 		if (lX == CHUNK_WIDTH - 1 && chunkX + 1 < CACHE_SIZE) Chunk_MarkCluster(cache->cache[chunkX + 1][chunkZ], clusterY, ClusterFlags_VBODirty);
 		if (lZ == 0 && chunkZ - 1 >= 0) Chunk_MarkCluster(cache->cache[chunkX][chunkZ - 1], clusterY, ClusterFlags_VBODirty);
 		if (lZ == CHUNK_DEPTH - 1 && chunkZ + 1 < CACHE_SIZE) Chunk_MarkCluster(cache->cache[chunkX][chunkZ + 1], clusterY, ClusterFlags_VBODirty);
+		int lY = y - (y / CHUNK_CLUSTER_HEIGHT * CHUNK_CLUSTER_HEIGHT);
+		if (lY == 0 && clusterY - 1 >= 0) Chunk_MarkCluster(cache->cache[chunkX][chunkZ], clusterY - 1, ClusterFlags_VBODirty);
+		if (lY == CHUNK_CLUSTER_HEIGHT - 1 && clusterY < CHUNK_CLUSTER_HEIGHT) Chunk_MarkCluster(cache->cache[chunkX][chunkZ], clusterY + 1, ClusterFlags_VBODirty);
 
 		return;
 	}

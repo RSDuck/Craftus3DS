@@ -6,7 +6,7 @@
 
 #include <stdio.h>
 
-static const world_vertex cube_sides_lut[] = {
+const world_vertex cube_sides_lut[] = {
     // First face (PZ)
     // First triangle
     {{0, 1}, {0, 0, 0, 255}},
@@ -93,9 +93,11 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 		Cluster* cluster = &chunk->data[i];
 		if (cluster->flags & ClusterFlags_VBODirty) {
 			int blocksNotAir = 0;
-#define MAX_SIDES (6 * (CHUNK_WIDTH * CHUNK_CLUSTER_HEIGHT * CHUNK_DEPTH / 2))
+#define MAX_SIDES (4 * (CHUNK_WIDTH * CHUNK_CLUSTER_HEIGHT * CHUNK_DEPTH / 2))
 			static Side sides[MAX_SIDES];
+			static Side sidesMipMap[MAX_SIDES];
 			int sideCurrent = 0;
+			int mipMappedSideCurrent = 0;
 
 			for (int x = 0; x < CHUNK_WIDTH; x++)
 				for (int z = 0; z < CHUNK_DEPTH; z++)
@@ -118,6 +120,32 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 									}
 									sideCurrent++;
 								}
+							}
+						}
+						if (x % 4 == 0 && z % 4 == 0 && y % 4 == 0) {
+							Block blocksOccured[256] = {0};
+							int highestID = 0;
+							for (int i = 0; i < 4; i++)
+								for (int j = 0; j < 4; j++)
+									for (int k = 0; k < 4; k++) {
+										Block block = cluster->blocks[x + i][y + j][z + k];
+										blocksOccured[block]++;
+										highestID = (block > highestID) ? block : highestID;
+									}
+
+							int highestOccurence = 0;
+							Block mostFrequentBlock = Block_Air;
+							for (int i = 0; i < highestID; i++) {
+								int occurence = blocksOccured[i];
+								if (occurence > highestOccurence) {
+									highestOccurence = occurence;
+									mostFrequentBlock = i;
+								}
+							}
+							if (mostFrequentBlock) {
+								sidesMipMap[mipMappedSideCurrent] = (Side){x, y, z};
+
+								mipMappedSideCurrent++;
 							}
 						}
 					}

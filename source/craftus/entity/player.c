@@ -13,6 +13,9 @@ Player* Player_New() {
 	player->x = 0.f;
 	player->y = 65.f;
 	player->z = 0.f;
+	player->seightX = 0;
+	player->seightY = 0;
+	player->seightZ = 0;
 	player->yaw = 0.f;
 	player->pitch = 0.f;
 	player->bobbing = 0.f;
@@ -81,8 +84,8 @@ void Player_Update(Player* player, u32 input, float deltaTime) {
 	}
 
 	// Drehen nach oben und unten
-	if (input & KEY_X) player->pitch += 100.f * DEG_TO_RAD * deltaTime;
-	if (input & KEY_B) player->pitch -= 100.f * DEG_TO_RAD * deltaTime;
+	if (input & KEY_X && player->pitch + 100.f * DEG_TO_RAD * deltaTime < M_PI) player->pitch += 100.f * DEG_TO_RAD * deltaTime;
+	if (input & KEY_B && player->pitch - 100.f * DEG_TO_RAD * deltaTime > -M_PI) player->pitch -= 100.f * DEG_TO_RAD * deltaTime;
 
 	if (input & KEY_L) dy += 16.f;
 
@@ -112,18 +115,29 @@ void Player_Update(Player* player, u32 input, float deltaTime) {
 	final.y = sinf(player->pitch);
 	final.z = -cosf(player->yaw) * cosf(player->pitch);
 
-	bool hit = Raycast_Cast(player->world, (C3D_FVec){1.f, player->z, player->y + PLAYER_EYE_HEIGHT, player->x}, final, &rayRes);
-	if (hit) printf("Ray hit a %d, %d, %d %f %d\n", rayRes.x, rayRes.y, rayRes.z, rayRes.distSqr, rayRes.direction);
+	player->viewVecX = final.x;
+	player->viewVecY = final.y;
+	player->viewVecZ = final.z;
 
-	if (blockBreakBuildTimeout <= 0.f && hit && rayRes.distSqr <= (5.f * 5.f + 5.f * 5.f + 5.f * 5.f)) {
-		if (input & KEY_Y) {
-			World_SetBlock(player->world, rayRes.x, rayRes.y, rayRes.z, Block_Air);
+	bool hit = Raycast_Cast(player->world, (C3D_FVec){1.f, player->z, player->y + PLAYER_EYE_HEIGHT, player->x}, final, &rayRes);
+
+	if (hit && rayRes.distSqr <= (5.f * 5.f + 5.f * 5.f + 5.f * 5.f)) {
+		player->seightX = rayRes.x;
+		player->seightY = rayRes.y;
+		player->seightZ = rayRes.z;
+		if (blockBreakBuildTimeout <= 0.f) {
+			if (input & KEY_Y) {
+				World_SetBlock(player->world, rayRes.x, rayRes.y, rayRes.z, Block_Air);
+			}
+			if (input & KEY_A) {
+				const int* blockOffset = DirectionToPosition[rayRes.direction];
+				World_SetBlock(player->world, rayRes.x + blockOffset[0], rayRes.y + blockOffset[1], rayRes.z + blockOffset[2], Block_Stone);
+			}
+			blockBreakBuildTimeout = 0.15f;
 		}
-		if (input & KEY_A) {
-			const int* blockOffset = DirectionToPosition[rayRes.direction];
-			World_SetBlock(player->world, rayRes.x + blockOffset[0], rayRes.y + blockOffset[1], rayRes.z + blockOffset[2], Block_Stone);
-		}
-		blockBreakBuildTimeout = 0.15f;
+		printf("Ray hit a %d, %d, %d %f %d\n", rayRes.x, rayRes.y, rayRes.z, rayRes.distSqr, rayRes.direction);
+	} else {
+		player->seightY = PLAYER_SEIGHT_INF;
 	}
 	blockBreakBuildTimeout -= deltaTime;
 

@@ -3,6 +3,7 @@
 #include <stdbool.h>
 
 #include <citro3d.h>
+#include <3ds.h>
 
 #include "stb_image/stb_image.h"
 
@@ -24,6 +25,7 @@ static DVLB_s* world_dvlb;
 static shaderProgram_s world_shader;
 static int world_shader_uLocProjection;
 static int world_shader_uLocModelView;
+static world_vertex* cursorVBO;
 
 static Camera camera;
 
@@ -55,11 +57,11 @@ void Render_Init() {
 
 	C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
 
-	target = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
+	target = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24);
 	C3D_RenderTargetSetClear(target, C3D_CLEAR_ALL, 0x68B0D8FF, 0);
 	C3D_RenderTargetSetOutput(target, GFX_TOP, GFX_LEFT, DISPLAY_TRANSFER_FLAGS);
 
-	rightTarget = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
+	rightTarget = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24);
 	C3D_RenderTargetSetClear(rightTarget, C3D_CLEAR_ALL, 0x68B0D8FF, 0);
 	C3D_RenderTargetSetOutput(rightTarget, GFX_TOP, GFX_RIGHT, DISPLAY_TRANSFER_FLAGS);
 
@@ -106,16 +108,25 @@ void Render_Init() {
 	}
 
 	C3D_TexEnv* env = C3D_GetTexEnv(0);
-	C3D_TexEnvSrc(env, C3D_Both, GPU_TEXTURE0, GPU_PRIMARY_COLOR, 0);
+	C3D_TexEnvSrc(env, C3D_Both, GPU_PRIMARY_COLOR, 0, 0);
 	C3D_TexEnvOp(env, C3D_Both, 0, 0, 0);
-	C3D_TexEnvFunc(env, C3D_Both, GPU_MODULATE);
-
-	C3D_CullFace(GPU_CULL_BACK_CCW);
+	C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
 
 	Camera_Init(&camera);
+
+	extern world_vertex cube_sides_lut[36];  // Richtig schlechter stil. Ich muss dagegen noch was unternehmen
+
+	cursorVBO = linearAlloc(sizeof(cube_sides_lut));
+	memcpy(cursorVBO, cube_sides_lut, sizeof(cube_sides_lut));
+	for (int i = 0; i < 36; i++) {
+		cursorVBO[i].yuvb[3] = 30;
+	}
+	GX_FlushCacheRegions(cursorVBO, sizeof(cube_sides_lut), NULL, 0, NULL, 0);
 }
 
 void Render_Exit() {
+	linearFree(cursorVBO);
+
 	C3D_TexDelete(&texture_map);
 
 	shaderProgramFree(&world_shader);
@@ -140,9 +151,7 @@ static void polygonizeWorld(World* world) {
 	}
 }
 
-static void renderWorld(Player* player) {
-	C3D_Mtx modelMtx, modelView;
-
+static void drawWorld(Player* player) {
 	int chunksDrawn = 0;
 
 	C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocModelView, &camera.view);
@@ -152,7 +161,7 @@ static void renderWorld(Player* player) {
 	ChunkCache* cache = player->cache;
 
 	int yStart = (int)player->y / CHUNK_CLUSTER_HEIGHT;
-
+	// TODO: Multthreading für Chunk polygonisierung
 	int length = 1;
 	int pX = CACHE_SIZE / 2, pZ = CACHE_SIZE / 2;
 	int sX = 0, sZ = 1;
@@ -160,32 +169,37 @@ static void renderWorld(Player* player) {
 	int turn = 0;
 	int totalTurn = 0;
 	while (true) {  // Zeichnet die Chunks in Schlangenform und dadurch automatisch die vordersten zuerst
+		// if (pX == 0 || pZ == 0 || pX == CACHE_SIZE - 1 || pZ == CACHE_SIZE - 1) break;  // Renderdistanz runterschrauben
 		for (int i = 0; i < length; i++) {
 			Chunk* c = cache->cache[pX][pZ];
 			float chunkX = c->x * CHUNK_WIDTH, chunkZ = c->z * CHUNK_DEPTH;
-			if (Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, 0.f, chunkX}, (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH})) {
-				bool passed = false;
+			float distXZSqr = (chunkX - player->x) * (chunkX - player->x) + (chunkZ - player->z) * (chunkZ - player->z);
+			if (distXZSqr <= ((M_PI + 0.5f - fabsf(player->pitch)) * 16.f * (M_PI + 0.5f - fabsf(player->pitch)) * 16.f))
+				if (Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, 0.f, chunkX}, (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH})) {
+					bool passed = false;
 
-				for (int j = 0; j < CHUNK_CLUSTER_COUNT; j++)
-					if (c->data[j].vbo && c->data[j].vertexCount) {
-						bool visible = Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, j * CHUNK_CLUSTER_HEIGHT, chunkX},
-										    (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_CLUSTER_HEIGHT, CHUNK_WIDTH});
-						if (visible) {
-							C3D_BufInfo bufInfo;
-							BufInfo_Init(&bufInfo);
-							BufInfo_Add(&bufInfo, c->data[j].vbo, sizeof(world_vertex), 2, 0x10);
+					for (int j = 0; j < CHUNK_CLUSTER_COUNT; j++) {
+						float distYSqr = j * CHUNK_CLUSTER_HEIGHT - player->y;
+						if (c->data[j].vbo && c->data[j].vertexCount && distYSqr <= (fabsf(player->pitch) + 0.5f) * 16.f) {
+							bool visible = Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, j * CHUNK_CLUSTER_HEIGHT, chunkX},
+											    (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_CLUSTER_HEIGHT, CHUNK_WIDTH});
+							if (visible) {
+								C3D_BufInfo bufInfo;
+								BufInfo_Init(&bufInfo);
+								BufInfo_Add(&bufInfo, c->data[j].vbo, sizeof(world_vertex), 2, 0x10);
 
-							C3D_SetBufInfo(&bufInfo);
+								C3D_SetBufInfo(&bufInfo);
 
-							C3D_DrawArrays(GPU_TRIANGLES, 0, c->data[j].vertexCount);
+								C3D_DrawArrays(GPU_TRIANGLES, 0, c->data[j].vertexCount);
 
-							passed = true;
-						} else if (passed)
-							break;
+								passed = true;
+							} else if (passed)
+								break;
+						}
 					}
 
-				chunksDrawn++;
-			}
+					chunksDrawn++;
+				}
 
 			pX += sX;
 			pZ += sZ;
@@ -201,21 +215,56 @@ static void renderWorld(Player* player) {
 
 		totalTurn++;
 	}
+
+	// printf("%d Chunks drawn", chunksDrawn);
+}
+
+static void drawCursor(Player* player) {
+	C3D_Mtx modelView, modelMatrix;
+	Mtx_Identity(&modelMatrix);
+	Mtx_Translate(&modelMatrix, player->seightX, player->seightY, player->seightZ, true);
+	Mtx_Scale(&modelMatrix, 1.07f, 1.07f, 1.07f);
+
+	Mtx_Multiply(&modelView, &camera.view, &modelMatrix);
+	C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocModelView, &modelView);
+
+	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ONE, GPU_ONE, GPU_ONE);
+
+	C3D_TexEnv* env = C3D_GetTexEnv(0);
+	C3D_TexEnvSrc(env, C3D_Both, GPU_PRIMARY_COLOR, 0, 0);
+	C3D_TexEnvOp(env, C3D_Both, 0, 0, 0);
+	C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
+
+	C3D_BufInfo bufInfo;
+	BufInfo_Init(&bufInfo);
+	BufInfo_Add(&bufInfo, cursorVBO, sizeof(world_vertex), 2, 0x10);
+	C3D_SetBufInfo(&bufInfo);
+
+	C3D_DrawArrays(GPU_TRIANGLES, 0, 36);
+
+	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA);
+
+	env = C3D_GetTexEnv(0);
+	C3D_TexEnvSrc(env, C3D_Both, GPU_TEXTURE0, GPU_PRIMARY_COLOR, 0);
+	C3D_TexEnvOp(env, C3D_Both, 0, 0, 0);
+	C3D_TexEnvFunc(env, C3D_Both, GPU_MODULATE);
 }
 
 void Render(Player* player) {
 	C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
 
-	C3D_FrameDrawOn(target);
-
 	polygonizeWorld(player->world);
 
 	float iod = osGet3DSliderState() / 3.f;
 
+	C3D_FrameDrawOn(target);
+
 	Camera_Update(&camera, player, -iod);
 	C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocProjection, &camera.projection);
 
-	renderWorld(player);
+	drawWorld(player);
+
+	drawCursor(player);
 
 	if (iod > 0.f) {
 		C3D_FrameDrawOn(rightTarget);
@@ -223,7 +272,10 @@ void Render(Player* player) {
 		Camera_Update(&camera, player, iod);
 		C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocProjection, &camera.projection);
 
-		renderWorld(player);
+		drawWorld(player);
+
+		drawCursor(player);
 	}
+
 	C3D_FrameEnd(0);
 }

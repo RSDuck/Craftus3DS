@@ -86,10 +86,6 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
-	for (float i = 0; i < M_PI * 2; i += 1.f * M_PI / 180.f) {
-		World_SetBlock(player->world, FastFloor(sinf(i) * 16.f), 8, FastFloor(cosf(i) * 16.f), Block_Dirt);
-	}
-
 	u64 time = osGetTime(), tickClock = 0, deltaTime = 0, fpsClock = 0;
 	u32 fps = 0, fpsCounter = 0;
 
@@ -124,7 +120,7 @@ int main(int argc, char* argv[]) {
 
 		// gfxFlushBuffers();
 
-		consoleSelect(&consoleEvent);
+		// consoleSelect(&consoleEvent);
 
 		Render(player);
 

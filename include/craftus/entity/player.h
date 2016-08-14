@@ -8,8 +8,12 @@
 #define PLAYER_HEIGHT 1.8f
 #define PLAYER_EYE_HEIGHT 1.72f
 
+#define PLAYER_SEIGHT_INF -42
+
 typedef struct {
 	float x, y, z;
+	float viewVecX, viewVecY, viewVecZ;
+	int seightX, seightY, seightZ;
 	float pitch, yaw;
 	float bobbing;
 	World* world;
