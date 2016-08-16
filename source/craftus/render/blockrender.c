@@ -188,7 +188,8 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 
 			world_vertex* ptr = (world_vertex*)cluster->vbo;
 
-			const int oneDivIconsPerRow = 256 / 7;
+			const int oneDivIconsPerRow = 256 / 8;
+			const int halfTexel = 256 / 128;
 
 			int16_t clusterX = (chunk->x * CHUNK_WIDTH);
 			uint8_t clusterY = (cluster->y * CHUNK_CLUSTER_HEIGHT);
@@ -226,8 +227,8 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 						ptr[k].yuvb[3] -= 55;
 					}
 
-					ptr[k].yuvb[1] = (ptr[k].yuvb[1] == 1 ? (oneDivIconsPerRow)) + blockUV[0];
-					ptr[k].yuvb[2] = (ptr[k].yuvb[2] == 1 ? (oneDivIconsPerRow)) + blockUV[1];
+					ptr[k].yuvb[1] = (ptr[k].yuvb[1] == 1 ? (oneDivIconsPerRow - halfTexel) : halfTexel) + blockUV[0];
+					ptr[k].yuvb[2] = (ptr[k].yuvb[2] == 1 ? (oneDivIconsPerRow - halfTexel) : halfTexel) + blockUV[1];
 
 					// printf("%f, %f\n", ptr[k].uv[0], ptr[k].uv[1]);
 				}

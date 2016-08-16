@@ -18,7 +18,7 @@ typedef struct {
 	float bobbing;
 	World* world;
 	ChunkCache* cache;
-
+	bool flying, grounded;
 } Player;
 
 Player* Player_New();

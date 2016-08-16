@@ -14,7 +14,10 @@ ChunkWorker* ChunkWorker_New(World* world) {
 	vec_init(&worker->queue[1]);
 
 	for (int i = 0; i < ChunkWorker_TaskTypeCount; i++) vec_init(&worker->handler[i]);
-	worker->thread = threadCreate(&ChunkWorker_Main, (void*)worker, CHUNKWORKER_THREAD_STACKSIZE, 0x18, 1, false);
+
+	int prio;
+	svcGetThreadPriority(&prio, CUR_THREAD_HANDLE);
+	worker->thread = threadCreate(&ChunkWorker_Main, (void*)worker, CHUNKWORKER_THREAD_STACKSIZE, prio - 1, 1, false);
 	if (!worker->thread) {
 		printf("Failed to create chunk worker thread\n");
 	}
@@ -62,9 +65,9 @@ void ChunkWorker_AddJob(ChunkWorker* worker, Chunk* chunk, ChunkWorker_TaskType 
 }
 
 void ChunkWorker_Main(void* args) {
-	printf("Hello from a worker thread\n");
+	// printf("Hello from a worker thread\n");
 	ChunkWorker* worker = (ChunkWorker*)args;
-	vec_t(Chunk*)unlockList;
+	vec_t(Chunk*) unlockList;
 	vec_init(&unlockList);
 	while (worker != workerToStop) {
 		if (!LightLock_TryLock(&worker->lock)) {
@@ -83,7 +86,6 @@ void ChunkWorker_Main(void* args) {
 
 				svcSleepThread(100);
 			}
-
 			// while (unlockList.length > 0) vec_pop(&unlockList)->flags &= ~ClusterFlags_InProcess;
 
 			LightLock_Unlock(&worker->lock);

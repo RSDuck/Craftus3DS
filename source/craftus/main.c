@@ -1,7 +1,7 @@
-#include "craftus/world/world.h"
 #include "craftus/entity/player.h"
 #include "craftus/render/render.h"
 #include "craftus/world/chunkworker.h"
+#include "craftus/world/world.h"
 #include "craftus/world/worldgen.h"
 
 #include <3ds.h>
@@ -47,6 +47,11 @@ int main(int argc, char* argv[]) {
 	consoleInit(GFX_BOTTOM, &consoleStatus);
 	consoleInit(GFX_BOTTOM, &consoleEvent);
 
+	consoleSetWindow(&consoleStatus, 0, 0, 320 / 8, 240 / 16);
+	consoleSetWindow(&consoleEvent, 0, 240 / 16 + 1, 320 / 8, 240 / 16 - 1);
+
+	consoleSelect(&consoleEvent);
+
 	printf("Craftus3D running!");
 
 	osSetSpeedupEnable(true);
@@ -55,26 +60,33 @@ int main(int argc, char* argv[]) {
 	}
 
 	if (R_FAILED(romfsInit())) {
-		printf("RomFS init failed!");
+		printf("RomFS init failed!\n");
 	}
 
 	Render_Init();
-	consoleSetWindow(&consoleStatus, 0, 0, 320 / 8, 240 / 16);
-	consoleSetWindow(&consoleEvent, 0, 240 / 16 + 1, 320 / 8, 240 / 16 - 1);
 
 	World* world = World_New();
 	WorldGen_Setup(world);
 
 	cworker = ChunkWorker_New(world);
-	// ChunkWorker_AddHandler(cworker, ChunkWorker_TaskDecorateChunk, &generateFlatWorld_test, 0);
-	ChunkWorker_AddHandler(cworker, ChunkWorker_TaskDecorateChunk, &WorldGen_ChunkBaseGenerator, 0);
+
+	if (world->genConfig.type == World_GenNormal) {
+		ChunkWorker_AddHandler(cworker, ChunkWorker_TaskDecorateChunk, &WorldGen_ChunkBaseGenerator, 0);
+	} else {
+		ChunkWorker_AddHandler(cworker, ChunkWorker_TaskDecorateChunk, &generateFlatWorld_test, 0);
+	}
 
 	Player* player = Player_New();
 	Player_Spawn(player, world);
 
+	consoleSelect(&consoleStatus);
+	float max = cworker->queue[cworker->currentQueue].length + cworker->queue[cworker->currentQueue ^ 1].length;
 	// Hier könnte später ein Ladebildschirm hin("Welt wird geladen, Landschaft wird generiert")
 	while (cworker->queue[cworker->currentQueue].length > 0 || cworker->queue[cworker->currentQueue ^ 1].length > 0) {
-		svcSleepThread(200000);
+		float current = cworker->queue[cworker->currentQueue].length + cworker->queue[cworker->currentQueue ^ 1].length;
+		consoleClear();
+		printf("Generating world %d%%\n", 100 - (int)((current / max) * 100.f));
+		svcSleepThread(800000);
 	}
 
 	for (int x = 0; x < CACHE_SIZE; x++) {
@@ -84,6 +96,7 @@ int main(int argc, char* argv[]) {
 					world->cache[0]->cache[x][z]->flags &= ~ClusterFlags_VBODirty;
 				}
 		}
+		printf("Row %d finished\n", x);
 	}
 
 	u64 time = osGetTime(), tickClock = 0, deltaTime = 0, fpsClock = 0;

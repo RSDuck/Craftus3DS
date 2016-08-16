@@ -1,15 +1,15 @@
 #include "craftus/entity/player.h"
 
-#include <string.h>
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <3ds.h>
 
 #include "craftus/misc/raycast.h"
 
 Player* Player_New() {
-	Player* player = malloc(sizeof(Player));
+	Player* player = (Player*)malloc(sizeof(Player));
 	player->x = 0.f;
 	player->y = 65.f;
 	player->z = 0.f;
@@ -19,7 +19,7 @@ Player* Player_New() {
 	player->yaw = 0.f;
 	player->pitch = 0.f;
 	player->bobbing = 0.f;
-	player->cache = malloc(sizeof(ChunkCache));
+	player->cache = (ChunkCache*)malloc(sizeof(ChunkCache));
 	player->world = NULL;
 
 	return player;
@@ -31,6 +31,7 @@ void Player_Free(Player* player) {
 }
 
 void Player_Spawn(Player* player, World* world) {
+	// printf("Spawning player\n");
 	player->world = world;
 	world->cache[0] = player->cache;
 	Player_Moved(player);
@@ -41,6 +42,7 @@ void Player_Spawn(Player* player, World* world) {
 			world->cache[0]->cache[x + (CACHE_SIZE / 2)][y + (CACHE_SIZE / 2)] = World_GetChunk(world, x, y);
 		}
 	}
+	printf("Player spawned\n");
 }
 
 static u32 lastKeys;
@@ -92,7 +94,11 @@ void Player_Update(Player* player, u32 input, float deltaTime) {
 	dy *= deltaTime, dx *= deltaTime, dz *= deltaTime;
 
 #define SIGN(x, y) ((x) < 0 ? (y) * -1 : (y))
-	if (dy < 0.f && World_GetBlock(player->world, FastFloor(player->x), FastFloor(player->y + dy), FastFloor(player->z)) == Block_Air) player->y += dy;
+	if (dy < 0.f && World_GetBlock(player->world, FastFloor(player->x), FastFloor(player->y + dy), FastFloor(player->z)) == Block_Air) {
+		player->grounded = true;
+		player->y += dy;
+	} else
+		player->grounded = false;
 	if (dy > 0.f && World_GetBlock(player->world, FastFloor(player->x), FastFloor(player->y + dy + PLAYER_HEIGHT), FastFloor(player->z)) == Block_Air) player->y += dy;
 
 	if (dx != 0.f || dz != 0.f) {

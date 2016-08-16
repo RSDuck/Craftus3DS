@@ -1,5 +1,9 @@
 .vscode
 
+.cprojct
+.project
+.settings
+
 # Build stuff
 build
 craftus3d.3dsx

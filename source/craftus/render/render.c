@@ -1,19 +1,17 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
-#include <stdbool.h>
 
-#include <citro3d.h>
 #include <3ds.h>
-
-#include "stb_image/stb_image.h"
+#include <citro3d.h>
 
 #include "craftus/render/render.h"
 
-#include "craftus/render/texture.h"
-#include "craftus/world/direction.h"
-#include "craftus/world/world.h"
 #include "craftus/entity/player.h"
 #include "craftus/render/camera.h"
+#include "craftus/render/texturemap.h"
+#include "craftus/world/direction.h"
+#include "craftus/world/world.h"
 
 #include "world_shbin.h"
 
@@ -30,7 +28,7 @@ static world_vertex* cursorVBO;
 
 static Camera camera;
 
-static C3D_Tex texture_map;
+static Texture_Map texturemap;
 
 static C3D_RenderTarget *target, *rightTarget;
 
@@ -68,7 +66,8 @@ void Render_Init() {
 
 	Camera_Init(&camera);
 
-	Texture_Load(&texture_map, "romfs:/textures/sprites.png");
+	Blocks_InitTexture(&texturemap);
+	C3D_TexBind(0, &texturemap.texture);
 
 	extern world_vertex cube_sides_lut[36];  // Richtig schlechter stil. Ich muss dagegen noch was unternehmen
 
@@ -83,7 +82,7 @@ void Render_Init() {
 void Render_Exit() {
 	linearFree(cursorVBO);
 
-	C3D_TexDelete(&texture_map);
+	C3D_TexDelete(&texturemap.texture);
 
 	shaderProgramFree(&world_shader);
 	DVLB_Free(world_dvlb);

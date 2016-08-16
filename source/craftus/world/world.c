@@ -1,14 +1,14 @@
 #include "craftus/world/world.h"
 #include "craftus/world/chunkworker.h"
 
-#include <string.h>
-#include <stdlib.h>
 #include <assert.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include <stdio.h>
 
-#include <3ds/types.h>
 #include <3ds/allocator/linear.h>
+#include <3ds/types.h>
 
 World* World_New() {
 	World* world = (World*)malloc(sizeof(World));
@@ -16,14 +16,14 @@ World* World_New() {
 	strcpy(world->name, "Test");
 
 	world->genConfig.seed = 2811;  // My birthday
-	world->genConfig.type = World_GenSuperFlat;
+	world->genConfig.type = World_GenNormal;
 
 	world->errFlags = 0;
 
 	poolInitialize(&world->chunkpool, sizeof(Chunk), CACHE_SIZE * CACHE_SIZE);
 	vec_init(&world->loadedChunks);
 
-	for (int i = 0; i < CACHE_SIZE * 2; i++) world->afterLife[i] = NULL;
+	for (int i = 0; i < CACHE_SIZE * 4; i++) world->afterLife[i] = NULL;
 
 	return world;
 }
@@ -53,6 +53,7 @@ Chunk* World_GetChunk(World* world, int x, int z) {
 			chunk->referenced++;
 			return chunk;
 		}
+	printf("No chunk loaded\n");
 	for (i = 0; i < CACHE_SIZE * 4; i++)
 		if (world->afterLife[i] != NULL)
 			if (world->afterLife[i]->x == x && world->afterLife[i]->z == z) {
@@ -62,6 +63,8 @@ Chunk* World_GetChunk(World* world, int x, int z) {
 				// printf("Fetched chunk from afterlife\n");
 				return chunk;
 			}
+
+	printf("Making a new chunk\n");
 
 	// Make a new one
 	chunk = poolMalloc(&world->chunkpool);

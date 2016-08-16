@@ -17,7 +17,7 @@ Craftus in a Minecraft clone for Nintendo 3DS(and not a continuation of 3DSCraft
 * (Maybe) support for Minecraft Ressourcepacks or atleast a custom format and a converter for PC
 
 ## License
-Follows, currently all rights reserved (C) 2016 RSDuck but in near future some more liberal open source license
+Apache License Version 2.0, see LICENSE and NOTICE
 
 ## Credits
 * Of course to those who made 3DS homebrew possible(too many to be listed here)

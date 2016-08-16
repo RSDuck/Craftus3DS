@@ -35,6 +35,7 @@ float octave_noise(int octaves, float persistence, float scale, float x, float y
 }
 
 bool WorldGen_ChunkBaseGenerator(ChunkWorker_Queue* queue, ChunkWorker_Task task) {
+	// printf("Generating chunk...\n");
 	float offsetX = task.chunk->x * CHUNK_WIDTH, offsetZ = task.chunk->z * CHUNK_DEPTH;
 
 	for (int x = 0; x < CHUNK_WIDTH; x++) {
@@ -70,6 +71,7 @@ bool WorldGen_ChunkBaseGenerator(ChunkWorker_Queue* queue, ChunkWorker_Task task
 			}
 		}
 	}
+	// printf("Finished\n");
 
 	return false;
 }
