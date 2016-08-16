@@ -11,7 +11,7 @@
 
 static bool generateFlatWorld_test(ChunkWorker_Queue* queue, ChunkWorker_Task task) {
 	Chunk* c = task.chunk;
-	/*for (int y = 0; y < CHUNK_HEIGHT; y++)
+	for (int y = 0; y < CHUNK_HEIGHT; y++)
 		for (int z = 0; z < CHUNK_DEPTH; z++)
 			for (int x = 0; x < CHUNK_WIDTH; x++) {
 				Block b = Block_Air;
@@ -29,9 +29,7 @@ static bool generateFlatWorld_test(ChunkWorker_Queue* queue, ChunkWorker_Task ta
 						return false;
 				}
 				Chunk_SetBlock(c, x, y, z, b);
-			}*/
-	for (int x = 0; x < CHUNK_WIDTH; x++)
-		for (int z = 0; z < CHUNK_DEPTH; z++) Chunk_SetBlock(c, x, 0, z, Block_Stone);
+			}
 	return false;
 }
 

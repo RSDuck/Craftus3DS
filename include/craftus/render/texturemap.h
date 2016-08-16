@@ -20,7 +20,7 @@ typedef struct {
 	Texture_MapIcon icons[TEXTURE_MAPTILES * TEXTURE_MAPTILES];
 } Texture_Map;
 
-void Texture_MapInit(Texture_Map* map, const char* files);
-Texture_MapIcon Texture_MapGetIcon(Texture_Map* map, const char* filename);
+void Texture_MapInit(Texture_Map* map, char* files);
+Texture_MapIcon Texture_MapGetIcon(Texture_Map* map, char* filename);
 
 #endif  // !TEXTUREMAP_H_INCLUDED
