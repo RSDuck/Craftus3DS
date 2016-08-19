@@ -53,7 +53,7 @@ Chunk* World_GetChunk(World* world, int x, int z) {
 			chunk->referenced++;
 			return chunk;
 		}
-	printf("No chunk loaded\n");
+	// printf("No chunk loaded\n");
 	for (i = 0; i < CACHE_SIZE * 4; i++)
 		if (world->afterLife[i] != NULL)
 			if (world->afterLife[i]->x == x && world->afterLife[i]->z == z) {
@@ -64,7 +64,7 @@ Chunk* World_GetChunk(World* world, int x, int z) {
 				return chunk;
 			}
 
-	printf("Making a new chunk\n");
+	// printf("Making a new chunk\n");
 
 	// Make a new one
 	chunk = poolMalloc(&world->chunkpool);

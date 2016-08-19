@@ -16,6 +16,9 @@ Craftus in a Minecraft clone for Nintendo 3DS(and not a continuation of 3DSCraft
 * Saving and opening worlds
 * (Maybe) support for Minecraft Ressourcepacks or atleast a custom format and a converter for PC
 
+## Note on building
+Craftus needs a patched version of Citro3D to build(I going to do a pull request soon, but before this happends I have to improve the code quality to the standards of Citro3D)
+
 ## License
 Apache License Version 2.0, see LICENSE and NOTICE
 
