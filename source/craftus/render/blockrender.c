@@ -1,7 +1,5 @@
 #include "craftus/render/render.h"
 
-#include "craftus/render/vecmath.h"
-
 #include <citro3d.h>
 
 #include <stdio.h>

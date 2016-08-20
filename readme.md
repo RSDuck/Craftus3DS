@@ -25,7 +25,7 @@ Apache License Version 2.0, see LICENSE and NOTICE
 ## Credits
 * Of course to those who made 3DS homebrew possible(too many to be listed here)
 * Everybody who wrote something for 3DS and made it open source
-* The textures come from the Minecraft Ressourcepack Pixel Perfect by XSSheep which is licensed under CC-BY-SA. The file "Pixel Perfection V3.5.zip" is a full copy of it. The folder romfs/textures contains single textures and one map with multiple textures put on it. For more informations about the Ressourcepack see here: http://www.minecraftforum.net/forums/mapping-and-modding/resource-packs/1242533-pixel-perfection-freshly-updated-1-10
+* The textures come from the Minecraft Ressourcepack Pixel Perfect by XSSheep which is licensed under CC-BY-SA. The file "Pixel Perfection V3.5.zip" is a full copy of it. The folder romfs/textures contains some textures extracted from it. For more informations about the Ressourcepack see here: http://www.minecraftforum.net/forums/mapping-and-modding/resource-packs/1242533-pixel-perfection-freshly-updated-1-10
 * Craftus also depends on several other small but very useful libraries packaged in the deps folder
 * The greedy meshing algorithm is based of the work from Robert O'Leary and Mikola Lysenko(see here: https://github.com/roboleary/GreedyMesh)
 

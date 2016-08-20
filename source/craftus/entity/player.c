@@ -13,14 +13,30 @@ Player* Player_New() {
 	player->x = 0.f;
 	player->y = 65.f;
 	player->z = 0.f;
+
 	player->seightX = 0;
 	player->seightY = 0;
 	player->seightZ = 0;
+
 	player->yaw = 0.f;
 	player->pitch = 0.f;
+
+	player->jumpTimer = 0.f;
+
+	player->viewVecX = 0.f;
+	player->viewVecY = 0.f;
+	player->viewVecZ = 1.f;
+
+	player->grounded = false;
+	player->flying = false;
+
+	player->flyingControl = 0.f;
+
 	player->bobbing = 0.f;
 	player->cache = (ChunkCache*)malloc(sizeof(ChunkCache));
 	player->world = NULL;
+
+	player->velocity = 1.2f;
 
 	return player;
 }
@@ -49,9 +65,14 @@ static u32 lastKeys;
 
 const float DEG_TO_RAD = M_PI * (1.f / 180.f);
 
+const float PLAYER_ACCLERATION = 4.f / 0.2f;
+
+#define MIN(a, b) ((a) > (b) ? (b) : (a))
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
 static float blockBreakBuildTimeout = 0.f;
 void Player_Update(Player* player, u32 input, float deltaTime) {
-	float dx = 0.f, dy = -10.f, dz = 0.f;
+	float dx = 0.f, dy = player->flying ? 0.f : -8.f, dz = 0.f;
 
 	circlePosition circ;
 	hidCircleRead(&circ);
@@ -62,12 +83,12 @@ void Player_Update(Player* player, u32 input, float deltaTime) {
 	if (input & KEY_R) {
 		// Strafing
 		if (input & KEY_CPAD_RIGHT) {
-			dx += sinf(player->yaw + (M_PI / 2.f)) * circX * 4.f;
-			dz += cosf(player->yaw + (M_PI / 2.f)) * circX * 4.f;
+			dx += sinf(player->yaw + (M_PI / 2.f)) * circX;
+			dz += cosf(player->yaw + (M_PI / 2.f)) * circX;
 		}
 		if (input & KEY_CPAD_LEFT) {
-			dx += sinf(player->yaw - (M_PI / 2.f)) * circX * 4.f;
-			dz += cosf(player->yaw - (M_PI / 2.f)) * circX * 4.f;
+			dx += sinf(player->yaw - (M_PI / 2.f)) * circX;
+			dz += cosf(player->yaw - (M_PI / 2.f)) * circX;
 		}
 	} else {
 		// Drehen nach links und rechts
@@ -77,31 +98,75 @@ void Player_Update(Player* player, u32 input, float deltaTime) {
 
 	// Vorwärts und Rückwärts
 	if (input & KEY_CPAD_UP) {
-		dx -= sinf(player->yaw) * circY * 4.f;
-		dz -= cosf(player->yaw) * circY * 4.f;
+		dx -= sinf(player->yaw) * circY;
+		dz -= cosf(player->yaw) * circY;
 	}
 	if (input & KEY_CPAD_DOWN) {
-		dx += sinf(player->yaw) * circY * 4.f;
-		dz += cosf(player->yaw) * circY * 4.f;
+		dx += sinf(player->yaw) * circY;
+		dz += cosf(player->yaw) * circY;
 	}
 
 	// Drehen nach oben und unten
 	if (input & KEY_X && player->pitch + 100.f * DEG_TO_RAD * deltaTime < M_PI) player->pitch += 100.f * DEG_TO_RAD * deltaTime;
 	if (input & KEY_B && player->pitch - 100.f * DEG_TO_RAD * deltaTime > -M_PI) player->pitch -= 100.f * DEG_TO_RAD * deltaTime;
 
-	if (input & KEY_L) dy += 16.f;
+	if (lastKeys & KEY_L && !(input & KEY_L) && player->flyingControl > 0.f) {
+		player->flying ^= true;
+	}
+	if (lastKeys & KEY_L && !(input & KEY_L) && player->flyingControl == 0.f) {
+		player->flyingControl = 0.25f;
+	}
+	player->flyingControl = MAX(player->flyingControl - deltaTime, 0.f);
+
+	if (!player->flying) {
+		if (player->grounded) {
+			if (input & KEY_L) {
+				player->jumpTimer = 0.75f;
+			}
+		}
+		if (player->jumpTimer > 0.f) {
+			if (input & KEY_L) {
+				dy += 20.f * player->jumpTimer;
+			} else {
+				player->jumpTimer = 0.f;
+			}
+		}
+	} else {
+		if (input & KEY_L) dy += 6.f;
+		if (input & KEY_DUP) dy -= 6.f;
+	}
+	player->jumpTimer = MAX(player->jumpTimer - deltaTime, 0.f);
+
+	bool noAccl = false;
+	if (player->velocity > 0.f && dx == 0.f && dz == 0.f) {
+		dx += player->velX;
+		dz += player->velZ;
+
+		noAccl = true;
+	} else {
+		player->velX = dx;
+		player->velZ = dz;
+	}
+	// printf("On Ground %s | jumpTimer %f\n", player->grounded ? "true" : "false", player->jumpTimer);
 
 	dy *= deltaTime, dx *= deltaTime, dz *= deltaTime;
-
 #define SIGN(x, y) ((x) < 0 ? (y) * -1 : (y))
+	player->grounded = false;
 	if (dy < 0.f && World_GetBlock(player->world, FastFloor(player->x), FastFloor(player->y + dy), FastFloor(player->z)) == Block_Air) {
-		player->grounded = true;
 		player->y += dy;
-	} else
-		player->grounded = false;
-	if (dy > 0.f && World_GetBlock(player->world, FastFloor(player->x), FastFloor(player->y + dy + PLAYER_HEIGHT), FastFloor(player->z)) == Block_Air) player->y += dy;
+	} else if (dy < 0.f) {
+		player->grounded = true;
+	}
+	if (dy > 0.f && World_GetBlock(player->world, FastFloor(player->x), FastFloor(player->y + dy + PLAYER_HEIGHT), FastFloor(player->z)) == Block_Air) {
+		player->y += dy;
+	}
 
 	if (dx != 0.f || dz != 0.f) {
+		if (!noAccl) player->velocity = MIN(player->velocity + PLAYER_ACCLERATION * deltaTime, 4.f);
+
+		dx *= player->velocity;
+		dz *= player->velocity;
+
 		if (World_GetBlock(player->world, FastFloor(player->x + dx + SIGN(dx, 0.1)), FastFloor(player->y), FastFloor(player->z)) == Block_Air &&
 		    World_GetBlock(player->world, FastFloor(player->x + dx + SIGN(dx, 0.1)), FastFloor(player->y) + 1, FastFloor(player->z)) == Block_Air)
 			player->x += dx;
@@ -113,6 +178,9 @@ void Player_Update(Player* player, u32 input, float deltaTime) {
 		if (player->bobbing >= 360.f * DEG_TO_RAD) player->bobbing = 0.f;  // Anti Overflow
 
 		Player_Moved(player);
+	}
+	if ((dx == 0.f && dz == 0.f) || noAccl) {
+		player->velocity = MAX(player->velocity - PLAYER_ACCLERATION * (2.f - (float)player->flying) * deltaTime, 0.f);
 	}
 
 	Raycast_Result rayRes;

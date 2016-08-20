@@ -12,12 +12,25 @@
 
 typedef struct {
 	float x, y, z;
-	float viewVecX, viewVecY, viewVecZ;
+
 	int seightX, seightY, seightZ;
+
+	float velocity;
+
+	float velX, velZ;
+
+	float jumpTimer;
+
+	float flyingControl;
+
+	float viewVecX, viewVecY, viewVecZ;
 	float pitch, yaw;
+
 	float bobbing;
+
 	World* world;
 	ChunkCache* cache;
+
 	bool flying, grounded;
 } Player;
 

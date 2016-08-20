@@ -1,7 +1,5 @@
 #include "craftus/render/camera.h"
 
-#include "craftus/render/vecmath.h"
-
 void Camera_Init(Camera* cam) {
 	Mtx_Identity(&cam->view);
 

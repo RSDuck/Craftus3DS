@@ -74,7 +74,7 @@ void Render_Init() {
 	cursorVBO = linearAlloc(sizeof(cube_sides_lut));
 	memcpy(cursorVBO, cube_sides_lut, sizeof(cube_sides_lut));
 	for (int i = 0; i < 36; i++) {
-		cursorVBO[i].yuvb[3] = 30;
+		cursorVBO[i].yuvb[3] = 50;
 	}
 	GX_FlushCacheRegions(cursorVBO, sizeof(cube_sides_lut), NULL, 0, NULL, 0);
 }
@@ -184,7 +184,7 @@ static void drawCursor(Player* player) {
 
 	C3D_Mtx modelView, modelMatrix;
 	Mtx_Identity(&modelMatrix);
-	Mtx_Translate(&modelMatrix, player->seightX, player->seightY, player->seightZ, true);
+	Mtx_Translate(&modelMatrix, player->seightX - 0.035f, player->seightY - 0.035f, player->seightZ - 0.035f, true);
 	Mtx_Scale(&modelMatrix, 1.07f, 1.07f, 1.07f);
 
 	Mtx_Multiply(&modelView, &camera.view, &modelMatrix);

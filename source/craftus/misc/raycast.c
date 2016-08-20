@@ -1,9 +1,10 @@
 #include "craftus/misc/raycast.h"
-#include "craftus/render/vecmath.h"
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
+
+#include <citro3d.h>
 
 #define INF 100.f
 
@@ -86,7 +87,7 @@ bool Raycast_Cast(World* world, C3D_FVec inpos, C3D_FVec raydir, Raycast_Result*
 			break;
 	}
 
-	C3D_FVec dist = FVec_Sub((C3D_FVec){1.f, mapZ, mapY, mapX}, inpos);
+	C3D_FVec dist = FVec3_Subtract(FVec3_New(mapX, mapY, mapZ), inpos);
 	out->distSqr = dist.x * dist.x + dist.y * dist.y + dist.z * dist.z;
 	out->x = mapX;
 	out->y = mapY;
