@@ -32,6 +32,8 @@ typedef struct {
 	ChunkCache* cache;
 
 	bool flying, grounded;
+
+	Block selectedBlock;
 } Player;
 
 Player* Player_New();

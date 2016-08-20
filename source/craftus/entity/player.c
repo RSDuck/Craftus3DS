@@ -119,17 +119,13 @@ void Player_Update(Player* player, u32 input, float deltaTime) {
 	player->flyingControl = MAX(player->flyingControl - deltaTime, 0.f);
 
 	if (!player->flying) {
-		if (player->grounded) {
-			if (input & KEY_L) {
-				player->jumpTimer = 0.75f;
-			}
-		}
+		if (player->grounded)
+			if (input & KEY_L) player->jumpTimer = 0.75f;
 		if (player->jumpTimer > 0.f) {
-			if (input & KEY_L) {
+			if (input & KEY_L)
 				dy += 20.f * player->jumpTimer;
-			} else {
+			else
 				player->jumpTimer = 0.f;
-			}
 		}
 	} else {
 		if (input & KEY_L) dy += 6.f;
@@ -149,17 +145,27 @@ void Player_Update(Player* player, u32 input, float deltaTime) {
 	}
 	// printf("On Ground %s | jumpTimer %f\n", player->grounded ? "true" : "false", player->jumpTimer);
 
+	if (lastKeys & KEY_DLEFT && !(input & KEY_LEFT)) {
+		player->selectedBlock = player->selectedBlock - 1 == 0 ? Blocks_Count - 1 : player->selectedBlock - 1;
+	}
+	if (lastKeys & KEY_DRIGHT && !(input & KEY_RIGHT)) {
+		player->selectedBlock = player->selectedBlock + 1 == Blocks_Count ? 1 : player->selectedBlock + 1;
+	}
+	printf("Selected block: %s\n", Blocks_GetNameStr(player->selectedBlock));
+
 	dy *= deltaTime, dx *= deltaTime, dz *= deltaTime;
 #define SIGN(x, y) ((x) < 0 ? (y) * -1 : (y))
 	player->grounded = false;
 	if (dy < 0.f && World_GetBlock(player->world, FastFloor(player->x), FastFloor(player->y + dy), FastFloor(player->z)) == Block_Air) {
 		player->y += dy;
 	} else if (dy < 0.f) {
+		player->flying = false;
 		player->grounded = true;
 	}
 	if (dy > 0.f && World_GetBlock(player->world, FastFloor(player->x), FastFloor(player->y + dy + PLAYER_HEIGHT), FastFloor(player->z)) == Block_Air) {
 		player->y += dy;
-	}
+	} else if (dy < 0.f)
+		player->jumpTimer = 0.f;
 
 	if (dx != 0.f || dz != 0.f) {
 		if (!noAccl) player->velocity = MIN(player->velocity + PLAYER_ACCLERATION * deltaTime, 4.f);
@@ -205,7 +211,11 @@ void Player_Update(Player* player, u32 input, float deltaTime) {
 			}
 			if (input & KEY_A) {
 				const int* blockOffset = DirectionToPosition[rayRes.direction];
-				World_SetBlock(player->world, rayRes.x + blockOffset[0], rayRes.y + blockOffset[1], rayRes.z + blockOffset[2], Block_Stone);
+				if (!(FastFloor(player->x) == rayres.x + blockOffset[0] &&
+				      (FastFloor(player->y) == rayRes.y + blockOffset[1] || FastFloor(player->y) + 1 == rayRes.y + blockOffset[1]) &&
+				      FastFloor(player->z) == rayRes.z + blockOffset[2])) {
+					World_SetBlock(player->world, rayRes.x + blockOffset[0], rayRes.y + blockOffset[1], rayRes.z + blockOffset[2], player->selectedBlock);
+				}
 			}
 			blockBreakBuildTimeout = 0.15f;
 		}
