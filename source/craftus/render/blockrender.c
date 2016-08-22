@@ -4,7 +4,7 @@
 
 #include <stdio.h>
 
-const world_vertex altModel[] = {
+const world_vertex plantmodel[] = {
     // First face
     // Erstes Dreieck
     {{0, 0}, {0, 0, 0, 255}},
@@ -113,23 +113,36 @@ const world_vertex cube_sides_lut[] = {
 typedef struct {
 	u8 x, y, z, sideAO;
 	Block block;
+	u8 brightness;
 } Side;
 
 static inline Block fastBlockFetch(World* world, Chunk* chunk, Cluster* cluster, int x, int y, int z) {
 	return (x < 0 || y < 0 || z < 0 || x >= CHUNK_WIDTH || y >= CHUNK_CLUSTER_HEIGHT || z >= CHUNK_DEPTH)
-		   ? World_GetBlock(world, (chunk->x * CHUNK_WIDTH) + x, (cluster->y * CHUNK_CLUSTER_HEIGHT) + y, (chunk->z * CHUNK_DEPTH) + z)
+		   ? World_GetBlock(world, (chunk->x * CHUNK_WIDTH) + x, (cluster->y * CHUNK_CLUSTER_HEIGHT) + y,
+				    (chunk->z * CHUNK_DEPTH) + z)
 		   : cluster->blocks[x][y][z];
+}
+
+static inline u8 fastHeightMapFetch(World* world, Chunk* chunk, int x, int z) {
+	return (x < 0 || z < 0 || x >= CHUNK_WIDTH || z >= CHUNK_DEPTH)
+		   ? World_FastChunkAccess(world, BlockToChunkCoordX(chunk->x * CHUNK_WIDTH + x),
+					   BlockToChunkCoordZ(chunk->z * CHUNK_DEPTH + z))
+			 ->heightmap[Chunk_GetLocalX(chunk->x * CHUNK_WIDTH + x)][Chunk_GetLocalZ(chunk->z * CHUNK_DEPTH + z)]
+		   : chunk->heightmap[x][z];
 }
 
 enum AOSides { AOSide_Top = BIT(4 + 0), AOSide_Bottom = BIT(4 + 1), AOSide_Left = BIT(4 + 2), AOSide_Right = BIT(4 + 3) };
 
 const int aoTable[Directions_Count][4][3] = {
-    {{0, 1, 0}, {0, -1, 0}, {-1, 0, 0}, {1, 0, 0}}, {{0, 1, 0}, {0, -1, 0}, {-1, 0, 0}, {1, 0, 0}}, {{0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}},
-    {{0, 1, 0}, {0, -1, 0}, {0, 0, -1}, {0, 0, 1}}, {{0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}}, {{0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}},
+    {{0, 1, 0}, {0, -1, 0}, {-1, 0, 0}, {1, 0, 0}}, {{0, 1, 0}, {0, -1, 0}, {-1, 0, 0}, {1, 0, 0}},
+    {{0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}}, {{0, 1, 0}, {0, -1, 0}, {0, 0, -1}, {0, 0, 1}},
+    {{0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}}, {{0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}},
 };
 
 bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 	if (chunk->flags & ClusterFlags_InProcess) return false;
+
+	Chunk_RecalcHeightMap(chunk);
 
 	for (int i = 0; i < CHUNK_CLUSTER_COUNT; i++) {
 		Cluster* cluster = &chunk->data[i];
@@ -147,12 +160,18 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 							for (int j = 0; j < Directions_Count; j++) {
 								const int* pos = DirectionToPosition[j];
 
-								if (fastBlockFetch(world, chunk, cluster, x + pos[0], y + pos[1], z + pos[2]) == Block_Air) {
-									sides[sideCurrent] = (Side){x, y, z, j, cluster->blocks[x][y][z]};
+								if (fastBlockFetch(world, chunk, cluster, x + pos[0], y + pos[1],
+										   z + pos[2]) == Block_Air) {
+									sides[sideCurrent] = (Side){
+									    x, y, z, j, cluster->blocks[x][y][z],
+									    (i * CHUNK_CLUSTER_HEIGHT) + y <
+										fastHeightMapFetch(world, chunk, x + pos[0], z + pos[2])};
 
 									for (int k = 0; k < 4; k++) {
 										const int* aoOffset = aoTable[j][k];
-										if (fastBlockFetch(world, chunk, cluster, x + pos[0] + aoOffset[0], y + pos[1] + aoOffset[1],
+										if (fastBlockFetch(world, chunk, cluster,
+												   x + pos[0] + aoOffset[0],
+												   y + pos[1] + aoOffset[1],
 												   z + pos[2] + aoOffset[2]) != Block_Air) {
 											sides[sideCurrent].sideAO |= 1 << (4 + k);
 											// printf("AO Side %d, %d, %d\n", x, y, z);
@@ -223,6 +242,9 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 					ao |= (ptr[k].yuvb[2] == 1 && top);
 					if (ao) {
 						ptr[k].yuvb[3] -= 55;
+					}
+					if (sides[j].brightness) {
+						ptr[k].yuvb[3] -= 90;
 					}
 
 					ptr[k].yuvb[1] = (ptr[k].yuvb[1] == 1 ? (oneDivIconsPerRow - halfTexel) : halfTexel) + blockUV[0];

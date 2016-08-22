@@ -14,6 +14,8 @@ typedef struct {
 	float x, y, z;
 
 	int seightX, seightY, seightZ;
+	// float seightDistance;
+	Direction seightDirection;
 
 	float velocity;
 

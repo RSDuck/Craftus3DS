@@ -1,8 +1,8 @@
 #ifndef WORLD_H_INCLUDED
 #define WORLD_H_INCLUDED
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #include <3ds/types.h>
 
@@ -37,6 +37,8 @@ typedef struct {
 	int x, z;
 	int referenced;
 
+	u8 heightmap[CHUNK_WIDTH][CHUNK_DEPTH];
+
 	int vertexCount;
 
 	int flags;
@@ -57,6 +59,8 @@ inline int Chunk_GetLocalZ(int z) {
 	int modZ = (z - (z / CHUNK_DEPTH * CHUNK_DEPTH));
 	return modZ < 0 ? modZ + CHUNK_DEPTH : modZ;
 }
+
+void Chunk_RecalcHeightMap(Chunk* chunk);
 
 inline int FastFloor(float x) { return (int)x - (x < (int)x); }
 
@@ -120,5 +124,7 @@ void World_UnloadChunk(World* world, int x, int z);
 void World_Profile(World* world);
 
 void World_FreeChunk(World* world, Chunk* chunk);
+
+Chunk* World_FastChunkAccess(World* world, int x, int z);
 
 #endif  // !WORLD_H_INCLUDED

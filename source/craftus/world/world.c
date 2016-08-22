@@ -180,6 +180,8 @@ void World_SetBlock(World* world, int x, int y, int z, Block block) {
 		Chunk_SetBlock(cache->cache[chunkX][chunkZ], lX, y, lZ, block);
 
 		int clusterY = y / CHUNK_CLUSTER_HEIGHT;
+		if (block != Block_Air) cache->cache[chunkX][chunkZ]->data[clusterY].flags &= ~ClusterFlags_Empty;
+
 		if (lX == 0 && chunkX - 1 >= 0) Chunk_MarkCluster(cache->cache[chunkX - 1][chunkZ], clusterY, ClusterFlags_VBODirty);
 		if (lX == CHUNK_WIDTH - 1 && chunkX + 1 < CACHE_SIZE) Chunk_MarkCluster(cache->cache[chunkX + 1][chunkZ], clusterY, ClusterFlags_VBODirty);
 		if (lZ == 0 && chunkZ - 1 >= 0) Chunk_MarkCluster(cache->cache[chunkX][chunkZ - 1], clusterY, ClusterFlags_VBODirty);
@@ -207,4 +209,30 @@ Block World_GetBlock(World* world, int x, int y, int z) {
 	}
 	world->errFlags |= World_ErrUnloadedBlockRequested;
 	return Block_Air;
+}
+
+void Chunk_RecalcHeightMap(Chunk* chunk) {
+	for (int x = 0; x < CHUNK_WIDTH; x++) {
+		for (int z = 0; z < CHUNK_DEPTH; z++) {
+			for (int y = CHUNK_HEIGHT - 1; y >= 0; y--) {
+				if (chunk->data[y / CHUNK_CLUSTER_HEIGHT].flags & ClusterFlags_Empty) y -= (CHUNK_CLUSTER_HEIGHT - 1);
+				if (Chunk_GetBlock(chunk, x, y, z) != Block_Air) {
+					chunk->heightmap[x][z] = y;
+					break;
+				}
+			}
+		}
+	}
+}
+
+Chunk* World_FastChunkAccess(World* world, int x, int z) {
+	ChunkCache* cache = world->cache[0];
+	if (Box_IsPointInside(cache->where, BlockToChunkCoordZ(x), BlockToChunkCoordZ(z))) {
+		int chunkX = ChunkCache_LocalizeChunkX(cache, x), chunkZ = ChunkCache_LocalizeChunkZ(cache, z);
+
+		world->errFlags &= ~World_ErrUnloadedBlockRequested;
+		return cache->cache[chunkX][chunkZ];
+	}
+	world->errFlags |= World_ErrUnloadedBlockRequested;
+	return NULL;
 }

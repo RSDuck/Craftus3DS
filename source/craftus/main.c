@@ -84,7 +84,7 @@ int main(int argc, char* argv[]) {
 		float current = cworker->queue[cworker->currentQueue].length + cworker->queue[cworker->currentQueue ^ 1].length;
 		consoleClear();
 		printf("Generating world %d%%\n", 100 - (int)((current / max) * 100.f) + 1);
-		svcSleepThread(2400000);
+		svcSleepThread(4800000);
 	}
 
 	for (int x = 0; x < CACHE_SIZE; x++) {

@@ -1,6 +1,6 @@
 #include "craftus/world/blocks.h"
 
-#define PREFIX "romfs:/textures/"
+#define PREFIX "romfs:/textures/blocks/"
 
 #define STONEP PREFIX "stone.png"
 #define GRASSTOPP PREFIX "grass_top.png"

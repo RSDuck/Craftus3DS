@@ -17,6 +17,7 @@ Player* Player_New() {
 	player->seightX = 0;
 	player->seightY = 0;
 	player->seightZ = 0;
+	// player->seightDistance = 0.f;
 
 	player->yaw = 0.f;
 	player->pitch = 0.f;
@@ -31,6 +32,8 @@ Player* Player_New() {
 	player->flying = false;
 
 	player->flyingControl = 0.f;
+
+	player->selectedBlock = Block_Stone;
 
 	player->bobbing = 0.f;
 	player->cache = (ChunkCache*)malloc(sizeof(ChunkCache));
@@ -114,7 +117,7 @@ void Player_Update(Player* player, u32 input, float deltaTime) {
 		player->flying ^= true;
 	}
 	if (lastKeys & KEY_L && !(input & KEY_L) && player->flyingControl == 0.f) {
-		player->flyingControl = 0.25f;
+		player->flyingControl = 0.3f;
 	}
 	player->flyingControl = MAX(player->flyingControl - deltaTime, 0.f);
 
@@ -154,7 +157,7 @@ void Player_Update(Player* player, u32 input, float deltaTime) {
 	printf("Selected block: %s\n", Blocks_GetNameStr(player->selectedBlock));
 
 	dy *= deltaTime, dx *= deltaTime, dz *= deltaTime;
-#define SIGN(x, y) ((x) < 0 ? (y) * -1 : (y))
+#define SIGN(x, y) ((x) < 0 ? -(y) : (y))
 	player->grounded = false;
 	if (dy < 0.f && World_GetBlock(player->world, FastFloor(player->x), FastFloor(player->y + dy), FastFloor(player->z)) == Block_Air) {
 		player->y += dy;
@@ -168,20 +171,23 @@ void Player_Update(Player* player, u32 input, float deltaTime) {
 		player->jumpTimer = 0.f;
 
 	if (dx != 0.f || dz != 0.f) {
-		if (!noAccl) player->velocity = MIN(player->velocity + PLAYER_ACCLERATION * deltaTime, 4.f);
+		if (!noAccl) player->velocity = MIN(player->velocity + PLAYER_ACCLERATION * deltaTime, player->flying ? 7.f : 5.f);
 
 		dx *= player->velocity;
 		dz *= player->velocity;
 
-		if (World_GetBlock(player->world, FastFloor(player->x + dx + SIGN(dx, 0.1)), FastFloor(player->y), FastFloor(player->z)) == Block_Air &&
-		    World_GetBlock(player->world, FastFloor(player->x + dx + SIGN(dx, 0.1)), FastFloor(player->y) + 1, FastFloor(player->z)) == Block_Air)
+		const float maxDistance = 0.18f;
+		if (World_GetBlock(player->world, FastFloor(player->x + dx + SIGN(dx, maxDistance)), FastFloor(player->y), FastFloor(player->z)) == Block_Air &&
+		    World_GetBlock(player->world, FastFloor(player->x + dx + SIGN(dx, maxDistance)), FastFloor(player->y) + 1, FastFloor(player->z)) == Block_Air)
 			player->x += dx;
-		if (World_GetBlock(player->world, FastFloor(player->x), FastFloor(player->y), FastFloor(player->z + dz + SIGN(dz, 0.1))) == Block_Air &&
-		    World_GetBlock(player->world, FastFloor(player->x), FastFloor(player->y) + 1, FastFloor(player->z + dz + SIGN(dz, 0.1))) == Block_Air)
+		if (World_GetBlock(player->world, FastFloor(player->x), FastFloor(player->y), FastFloor(player->z + dz + SIGN(dz, maxDistance))) == Block_Air &&
+		    World_GetBlock(player->world, FastFloor(player->x), FastFloor(player->y) + 1, FastFloor(player->z + dz + SIGN(dz, maxDistance))) == Block_Air)
 			player->z += dz;
 
-		player->bobbing += (360.f * 2.f) * DEG_TO_RAD * deltaTime;
-		if (player->bobbing >= 360.f * DEG_TO_RAD) player->bobbing = 0.f;  // Anti Overflow
+		if (!player->flying) {
+			player->bobbing += (360.f * 2.f) * DEG_TO_RAD * deltaTime;
+			if (player->bobbing >= 360.f * DEG_TO_RAD) player->bobbing = 0.f;  // Anti Overflow
+		}
 
 		Player_Moved(player);
 	}
@@ -201,17 +207,22 @@ void Player_Update(Player* player, u32 input, float deltaTime) {
 
 	bool hit = Raycast_Cast(player->world, (C3D_FVec){1.f, player->z, player->y + PLAYER_EYE_HEIGHT, player->x}, final, &rayRes);
 
+	/*if (hit)
+		player->seightDistance = sqrtf(rayRes.distSqr);
+	else
+		player->seightDistance = 100.f;*/
 	if (hit && rayRes.distSqr <= (5.f * 5.f + 5.f * 5.f + 5.f * 5.f)) {
 		player->seightX = rayRes.x;
 		player->seightY = rayRes.y;
 		player->seightZ = rayRes.z;
+		player->seightDirection = rayRes.direction;
 		if (blockBreakBuildTimeout <= 0.f) {
 			if (input & KEY_Y) {
 				World_SetBlock(player->world, rayRes.x, rayRes.y, rayRes.z, Block_Air);
 			}
 			if (input & KEY_A) {
 				const int* blockOffset = DirectionToPosition[rayRes.direction];
-				if (!(FastFloor(player->x) == rayres.x + blockOffset[0] &&
+				if (!(FastFloor(player->x) == rayRes.x + blockOffset[0] &&
 				      (FastFloor(player->y) == rayRes.y + blockOffset[1] || FastFloor(player->y) + 1 == rayRes.y + blockOffset[1]) &&
 				      FastFloor(player->z) == rayRes.z + blockOffset[2])) {
 					World_SetBlock(player->world, rayRes.x + blockOffset[0], rayRes.y + blockOffset[1], rayRes.z + blockOffset[2], player->selectedBlock);
@@ -219,7 +230,6 @@ void Player_Update(Player* player, u32 input, float deltaTime) {
 			}
 			blockBreakBuildTimeout = 0.15f;
 		}
-		printf("Ray hit a %d, %d, %d %f %d\n", rayRes.x, rayRes.y, rayRes.z, rayRes.distSqr, rayRes.direction);
 	} else {
 		player->seightY = PLAYER_SEIGHT_INF;
 	}

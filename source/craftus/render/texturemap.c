@@ -15,7 +15,30 @@ uint32_t hash(char* str) {
 	return hash;
 }
 
-void Texture_Load(C3D_Tex* result, char* filename) {}
+void Texture_Load(C3D_Tex* result, char* filename) {
+	uint32_t* image = NULL;
+	int width = 255, height = 255;
+	uint32_t error = lodepng_decode32_file((uint8_t*)&image, &width, &height, filename);
+	if (error == 0 && image != NULL) {
+		uint32_t* imgInLinRam = (u32*)linearAlloc(width * height * 4);
+		for (int i = 0; i < width * height; i++) {
+			imgInLinRam[i] = __builtin_bswap32(image[i]);
+		}
+		GSPGPU_FlushDataCache(imgInLinRam, width * height * 4);
+		free(image);
+
+		C3D_TexInitVRAM(result, width, height, GPU_RGBA8);
+
+		C3D_SafeDisplayTransfer(imgInLinRam, GX_BUFFER_DIM(width, height), result->data, GX_BUFFER_DIM(width, height),
+					(GX_TRANSFER_FLIP_VERT(1) | GX_TRANSFER_OUT_TILED(1) | GX_TRANSFER_RAW_COPY(0) | GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGBA8) |
+					 GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGBA8) | GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO)));
+		gspWaitForPPF();
+
+		linearFree(imgInLinRam);
+	} else {
+		printf("Failed to load %s\n", filename);
+	}
+}
 
 // Grabbed from Citra Emulator (citra/src/video_core/utils.h)
 static inline u32 morton_interleave(u32 x, u32 y) {
@@ -75,7 +98,7 @@ void Texture_MapInit(Texture_Map* map, char* files) {
 	int c = 0;
 	while (filename != NULL && c < (TEXTURE_MAPTILES * TEXTURE_MAPTILES)) {
 		uint32_t *image, w, h;
-		uint32_t error = lodepng_decode32_file((uint8_t**)&image, &w, &h, filename);
+		uint32_t error = lodepng_decode32_file((uint8_t*)&image, &w, &h, filename);
 		if (w == TEXTURE_TILESIZE && h == TEXTURE_TILESIZE && image != NULL && !error) {
 			for (int x = 0; x < TEXTURE_TILESIZE; x++) {
 				for (int y = 0; y < TEXTURE_TILESIZE; y++) {

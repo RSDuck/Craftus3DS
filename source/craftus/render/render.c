@@ -29,6 +29,7 @@ static world_vertex* cursorVBO;
 static Camera camera;
 
 static Texture_Map texturemap;
+static C3D_Tex iconstex;
 
 static C3D_RenderTarget *target, *rightTarget;
 
@@ -59,30 +60,35 @@ void Render_Init() {
 	AttrInfo_AddLoader(attrInfo, 0, GPU_SHORT, 2);
 	AttrInfo_AddLoader(attrInfo, 1, GPU_UNSIGNED_BYTE, 4);
 
+	C3D_BufInfo* bufInfo = C3D_GetBufInfo();
+	BufInfo_Init(bufInfo);
+
 	C3D_TexEnv* env = C3D_GetTexEnv(0);
-	C3D_TexEnvSrc(env, C3D_Both, GPU_PRIMARY_COLOR, 0, 0);
+	C3D_TexEnvSrc(env, C3D_Both, GPU_TEXTURE0, GPU_PRIMARY_COLOR, 0);
 	C3D_TexEnvOp(env, C3D_Both, 0, 0, 0);
-	C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
+	C3D_TexEnvFunc(env, C3D_Both, GPU_MODULATE);
 
 	Camera_Init(&camera);
 
 	Blocks_InitTexture(&texturemap);
-	C3D_TexBind(0, &texturemap.texture);
+
+	Texture_Load(&iconstex, "romfs:/textures/gui/icons.png");
 
 	extern world_vertex cube_sides_lut[36];  // Richtig schlechter stil. Ich muss dagegen noch was unternehmen
 
 	cursorVBO = linearAlloc(sizeof(cube_sides_lut));
 	memcpy(cursorVBO, cube_sides_lut, sizeof(cube_sides_lut));
 	for (int i = 0; i < 36; i++) {
-		cursorVBO[i].yuvb[3] = 50;
+		cursorVBO[i].yuvb[3] = 20;
 	}
-	GX_FlushCacheRegions(cursorVBO, sizeof(cube_sides_lut), NULL, 0, NULL, 0);
+	GX_FlushCacheRegions((u32*)cursorVBO, sizeof(cube_sides_lut), NULL, 0, NULL, 0);
 }
 
 void Render_Exit() {
 	linearFree(cursorVBO);
 
 	C3D_TexDelete(&texturemap.texture);
+	C3D_TexDelete(&iconstex);
 
 	shaderProgramFree(&world_shader);
 	DVLB_Free(world_dvlb);
@@ -107,6 +113,8 @@ static void polygonizeWorld(World* world) {
 }
 
 static void drawWorld(Player* player) {
+	C3D_TexBind(0, &texturemap.texture);
+
 	int chunksDrawn = 0;
 
 	C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocModelView, &camera.view);
@@ -174,37 +182,89 @@ static void drawWorld(Player* player) {
 	// printf("%d Chunks drawn", chunksDrawn);
 }
 
-static void drawCrossHair() {}
+static inline void immWorldVtx(float x, float y, float z, float u, float v, float brightness) {
+	C3D_ImmSendAttrib(x, z, 0.f, 0.f);
+	C3D_ImmSendAttrib(y, u, v, brightness);
+}
+
+static void drawTexture(C3D_Tex* tex, float x, float y, float subX, float subY, float subWidth, float subHeight) {
+	float actualW = (subWidth * (1.f / 255.f)) * tex->width;
+	float actualH = (subWidth * (1.f / 255.f)) * tex->height;
+
+	const float depth = 0.f;
+
+	C3D_ImmDrawBegin(GPU_TRIANGLES);
+
+	immWorldVtx(x, y, depth, subX, subY, 255.f);
+	immWorldVtx(x + actualW, y, depth, subX + subWidth, subY, 255.f);
+	immWorldVtx(x + actualW, y + actualH, depth, subX + subWidth, subY + subHeight, 255.f);
+
+	immWorldVtx(x, y + actualH, depth, subX, subY + subHeight, 255.f);
+	immWorldVtx(x, y, depth, subX, subY, 255.f);
+	immWorldVtx(x + actualW, y + actualH, depth, subX + subWidth, subY + subHeight, 255.f);
+
+	C3D_ImmDrawEnd();
+}
+
+static void drawGUI(Player* player, float iod) {
+	C3D_TexBind(0, &iconstex);
+	C3D_Mtx projMtx, ident;
+
+	Mtx_Identity(&ident);
+	Mtx_OrthoTilt(&projMtx, 0.f, 200.f, 0.f, 120.f, 0.f, 1.f, false);
+	C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocProjection, &projMtx);
+	C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocModelView, &ident);
+
+	C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_ALL);
+
+	if (!(iod > 0.f)) {
+		drawTexture(&iconstex, 200.f / 2.f - 8.f, 120.f / 2.f - 8.f, 0.f, 0.f, 16.f, 16.f);
+	}
+
+	C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_ALL);
+}
 
 static void drawCursor(Player* player) {
-	C3D_TexEnv* env = C3D_GetTexEnv(0);
-	C3D_TexEnvSrc(env, C3D_Both, GPU_PRIMARY_COLOR, 0, 0);
-	C3D_TexEnvOp(env, C3D_Both, 0, 0, 0);
-	C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
+	if (player->seightY != PLAYER_SEIGHT_INF) {
+		C3D_TexEnv* env = C3D_GetTexEnv(0);
+		C3D_TexEnvSrc(env, C3D_Both, GPU_PRIMARY_COLOR, 0, 0);
+		C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
 
-	C3D_Mtx modelView, modelMatrix;
-	Mtx_Identity(&modelMatrix);
-	Mtx_Translate(&modelMatrix, player->seightX - 0.035f, player->seightY - 0.035f, player->seightZ - 0.035f, true);
-	Mtx_Scale(&modelMatrix, 1.07f, 1.07f, 1.07f);
+		static Direction lastDirection = Direction_Back;
 
-	Mtx_Multiply(&modelView, &camera.view, &modelMatrix);
-	C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocModelView, &modelView);
+		if (lastDirection != player->seightDirection) {
+			for (int i = 0; i < Directions_Count; i++) {
+				if (i == player->seightDirection)
+					for (int j = 0; j < 6; j++) cursorVBO[i * 6 + j].yuvb[3] = 90;
+				if (i == lastDirection)
+					for (int j = 0; j < 6; j++) cursorVBO[i * 6 + j].yuvb[3] = 20;
+			}
+			lastDirection = player->seightDirection;
+		}
 
-	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ONE, GPU_ONE, GPU_ONE);
+		C3D_Mtx modelView, modelMatrix;
+		Mtx_Identity(&modelMatrix);
+		Mtx_Translate(&modelMatrix, player->seightX - 0.035f, player->seightY - 0.035f, player->seightZ - 0.035f, true);
+		Mtx_Scale(&modelMatrix, 1.07f, 1.07f, 1.07f);
 
-	C3D_BufInfo bufInfo;
-	BufInfo_Init(&bufInfo);
-	BufInfo_Add(&bufInfo, cursorVBO, sizeof(world_vertex), 2, 0x10);
-	C3D_SetBufInfo(&bufInfo);
+		Mtx_Multiply(&modelView, &camera.view, &modelMatrix);
+		C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocModelView, &modelView);
 
-	C3D_DrawArrays(GPU_TRIANGLES, 0, 36);
+		C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ONE, GPU_ONE, GPU_ONE);
 
-	C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA);
+		C3D_BufInfo bufInfo;
+		BufInfo_Init(&bufInfo);
+		BufInfo_Add(&bufInfo, cursorVBO, sizeof(world_vertex), 2, 0x10);
+		C3D_SetBufInfo(&bufInfo);
 
-	env = C3D_GetTexEnv(0);
-	C3D_TexEnvSrc(env, C3D_Both, GPU_TEXTURE0, GPU_PRIMARY_COLOR, 0);
-	C3D_TexEnvOp(env, C3D_Both, 0, 0, 0);
-	C3D_TexEnvFunc(env, C3D_Both, GPU_MODULATE);
+		C3D_DrawArrays(GPU_TRIANGLES, 0, 36);
+
+		C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA);
+
+		env = C3D_GetTexEnv(0);
+		C3D_TexEnvSrc(env, C3D_Both, GPU_TEXTURE0, GPU_PRIMARY_COLOR, 0);
+		C3D_TexEnvFunc(env, C3D_Both, GPU_MODULATE);
+	}
 }
 
 void Render(Player* player) {
@@ -223,6 +283,8 @@ void Render(Player* player) {
 
 	drawCursor(player);
 
+	drawGUI(player, iod);
+
 	if (iod > 0.f) {
 		C3D_FrameDrawOn(rightTarget);
 
@@ -232,6 +294,8 @@ void Render(Player* player) {
 		drawWorld(player);
 
 		drawCursor(player);
+
+		drawGUI(player, iod);
 	}
 
 	C3D_FrameEnd(0);
