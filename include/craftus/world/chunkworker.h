@@ -9,7 +9,13 @@
 
 #define CHUNKWORKER_THREAD_STACKSIZE (4 * 1024)
 
-typedef enum { ChunkWorker_TaskOpenChunk, ChunkWorker_TaskSaveChunk, ChunkWorker_TaskDecorateChunk, ChunkWorker_PolygonizeChunk, ChunkWorker_TaskTypeCount } ChunkWorker_TaskType;
+typedef enum {
+	ChunkWorker_TaskOpenChunk,
+	ChunkWorker_TaskSaveChunk,
+	ChunkWorker_TaskDecorateChunk,
+	ChunkWorker_PolygonizeChunk,
+	ChunkWorker_TaskTypeCount
+} ChunkWorker_TaskType;
 typedef struct {
 	ChunkWorker_TaskType type;
 	Chunk* chunk;
@@ -39,7 +45,6 @@ typedef struct {
 ChunkWorker* ChunkWorker_New(World* world);
 void ChunkWorker_Stop(ChunkWorker* worker);
 
-// priority ist zurzeit nutzlos
 void ChunkWorker_AddHandler(ChunkWorker* worker, ChunkWorker_TaskType type, ChunkWorker_HandlerFunc handlerFunc, int priority);
 void ChunkWorker_AddJob(ChunkWorker* worker, Chunk* chunk, ChunkWorker_TaskType type);
 

@@ -84,13 +84,13 @@ void ChunkWorker_Main(void* args) {
 				// vec_push(&unlockList, task.chunk);
 				task.chunk->flags &= ~ClusterFlags_InProcess;
 
-				svcSleepThread(100);
+				svcSleepThread(1000110);
 			}
 			// while (unlockList.length > 0) vec_pop(&unlockList)->flags &= ~ClusterFlags_InProcess;
 
 			LightLock_Unlock(&worker->lock);
 
-			svcSleepThread(100000);
+			svcSleepThread(1000000);
 		}
 	}
 	vec_deinit(&unlockList);

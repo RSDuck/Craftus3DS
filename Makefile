@@ -29,7 +29,7 @@ include $(DEVKITARM)/3ds_rules
 #---------------------------------------------------------------------------------
 TARGET		:=	$(notdir $(CURDIR))
 BUILD		:=	build
-SOURCES		:=	source source/craftus source/craftus/entity source/craftus/world source/craftus/misc source/craftus/render deps/vec deps/pool deps/lodepng deps/SimplexNoise
+SOURCES		:=	source source/craftus source/craftus/entity source/craftus/world source/craftus/misc source/craftus/render deps/vec deps/pool deps/lodepng deps/SimplexNoise deps/json-parser
 DATA		:=	data
 INCLUDES	:=	include deps
 ROMFS		:=	romfs

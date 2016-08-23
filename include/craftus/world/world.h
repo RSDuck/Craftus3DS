@@ -70,7 +70,9 @@ inline void Chunk_SetBlock(Chunk* c, int x, int y, int z, Block block) {
 	c->flags |= ClusterFlags_VBODirty;
 }
 
-inline Block Chunk_GetBlock(Chunk* c, int x, int y, int z) { return c->data[y / CHUNK_CLUSTER_HEIGHT].blocks[x][y - (y / CHUNK_CLUSTER_HEIGHT * CHUNK_CLUSTER_HEIGHT)][z]; }
+inline Block Chunk_GetBlock(Chunk* c, int x, int y, int z) {
+	return c->data[y / CHUNK_CLUSTER_HEIGHT].blocks[x][y - (y / CHUNK_CLUSTER_HEIGHT * CHUNK_CLUSTER_HEIGHT)][z];
+}
 
 #define CACHE_SIZE 9
 
@@ -97,6 +99,7 @@ typedef struct {
 	int type;
 } World_GenConfig;
 
+#define CHUNK_AFTERLIFE_SIZE (CACHE_SIZE * 4)
 typedef struct {
 	char name[12];
 	World_GenConfig genConfig;
@@ -105,7 +108,7 @@ typedef struct {
 	pool chunkpool;
 	ChunkVec loadedChunks;
 
-	Chunk* afterLife[CACHE_SIZE * 4];
+	Chunk* afterLife[CHUNK_AFTERLIFE_SIZE];
 
 	int errFlags;
 } World;
