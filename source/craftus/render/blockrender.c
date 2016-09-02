@@ -1,5 +1,7 @@
 #include "craftus/render/render.h"
 
+#include "craftus/world/chunkworker.h"
+
 #include <citro3d.h>
 
 #include <stdio.h>
@@ -117,6 +119,7 @@ typedef struct {
 } Side;
 
 static inline Block fastBlockFetch(World* world, Chunk* chunk, Cluster* cluster, int x, int y, int z) {
+	world->errFlags = 0;
 	return (x < 0 || y < 0 || z < 0 || x >= CHUNK_WIDTH || y >= CHUNK_CLUSTER_HEIGHT || z >= CHUNK_DEPTH)
 		   ? World_GetBlock(world, (chunk->x * CHUNK_WIDTH) + x, (cluster->y * CHUNK_CLUSTER_HEIGHT) + y,
 				    (chunk->z * CHUNK_DEPTH) + z)
@@ -125,8 +128,7 @@ static inline Block fastBlockFetch(World* world, Chunk* chunk, Cluster* cluster,
 
 static inline u8 fastHeightMapFetch(World* world, Chunk* chunk, int x, int z) {
 	return (x < 0 || z < 0 || x >= CHUNK_WIDTH || z >= CHUNK_DEPTH)
-		   ? World_FastChunkAccess(world, BlockToChunkCoordX(chunk->x * CHUNK_WIDTH + x),
-					   BlockToChunkCoordZ(chunk->z * CHUNK_DEPTH + z))
+		   ? World_FastChunkAccess(world, chunk->x * CHUNK_WIDTH + x, chunk->z * CHUNK_DEPTH + z)
 			 ->heightmap[Chunk_GetLocalX(chunk->x * CHUNK_WIDTH + x)][Chunk_GetLocalZ(chunk->z * CHUNK_DEPTH + z)]
 		   : chunk->heightmap[x][z];
 }
@@ -139,8 +141,13 @@ const int aoTable[Directions_Count][4][3] = {
     {{0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}}, {{0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}},
 };
 
-bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
-	if (chunk->flags & ClusterFlags_InProcess) return false;
+bool BlockRender_TaskPolygonizeChunk(ChunkWorker_Queue* queue, ChunkWorker_Task task) {
+	if (BlockRender_PolygonizeChunk(task.world, task.chunk, false)) task.chunk->flags &= ~ClusterFlags_VBODirty;
+	return true;
+}
+
+bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk, bool ignoreIfLocked) {
+	if (chunk->flags & ClusterFlags_InProcess && ignoreIfLocked) return false;
 
 	Chunk_RecalcHeightMap(chunk);
 
@@ -149,11 +156,12 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 		if (cluster->flags & ClusterFlags_VBODirty) {
 			int blocksNotAir = 0;
 #define MAX_SIDES (6 * (CHUNK_WIDTH * CHUNK_CLUSTER_HEIGHT * CHUNK_DEPTH / 2))
-			static Side sides[MAX_SIDES];
+			static Side sideBufs[2][MAX_SIDES];
+			Side* sides = sideBufs[ignoreIfLocked];
 			int sideCurrent = 0;
 
 			for (int x = 0; x < CHUNK_WIDTH; x++)
-				for (int z = 0; z < CHUNK_DEPTH; z++)
+				for (int z = 0; z < CHUNK_DEPTH; z++) {
 					for (int y = 0; y < CHUNK_CLUSTER_HEIGHT; y++) {
 						if (cluster->blocks[x][y][z] != Block_Air) {
 							blocksNotAir++;
@@ -162,32 +170,37 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk) {
 
 								if (fastBlockFetch(world, chunk, cluster, x + pos[0], y + pos[1],
 										   z + pos[2]) == Block_Air) {
-									sides[sideCurrent] = (Side){
-									    x, y, z, j, cluster->blocks[x][y][z],
-									    (i * CHUNK_CLUSTER_HEIGHT) + y <
-										fastHeightMapFetch(world, chunk, x + pos[0], z + pos[2])};
+									if (!(world->errFlags & World_ErrUnloadedBlockRequested)) {
+										sides[sideCurrent] =
+										    (Side){x, y, z, j, cluster->blocks[x][y][z],
+											   (i * CHUNK_CLUSTER_HEIGHT) + y <
+											       fastHeightMapFetch(world, chunk, x + pos[0],
+														  z + pos[2])};
 
-									for (int k = 0; k < 4; k++) {
-										const int* aoOffset = aoTable[j][k];
-										if (fastBlockFetch(world, chunk, cluster,
-												   x + pos[0] + aoOffset[0],
-												   y + pos[1] + aoOffset[1],
-												   z + pos[2] + aoOffset[2]) != Block_Air) {
-											sides[sideCurrent].sideAO |= 1 << (4 + k);
-											// printf("AO Side %d, %d, %d\n", x, y, z);
+										for (int k = 0; k < 4; k++) {
+											const int* aoOffset = aoTable[j][k];
+											if (fastBlockFetch(world, chunk, cluster,
+													   x + pos[0] + aoOffset[0],
+													   y + pos[1] + aoOffset[1],
+													   z + pos[2] + aoOffset[2]) !=
+											    Block_Air) {
+												sides[sideCurrent].sideAO |= 1 << (4 + k);
+												// printf("AO Side %d, %d, %d\n", x, y, z);
+											}
 										}
+										sideCurrent++;
 									}
-									sideCurrent++;
 								}
 							}
 						}
 					}
-
+					if (!ignoreIfLocked) svcSleepThread(1000);
+				}
 			int vboBytestNeeded = sizeof(world_vertex) * 6 * sideCurrent;
 			if (!vboBytestNeeded) {
 				cluster->vertexCount = 0;
 				cluster->flags &= ~ClusterFlags_VBODirty;
-				if (blocksNotAir) cluster->flags |= ClusterFlags_Empty;
+				if (blocksNotAir == 0) cluster->flags |= ClusterFlags_Empty;
 				continue;
 			}
 

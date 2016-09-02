@@ -13,6 +13,18 @@ typedef enum { BlockShape_Cube, BlockShape_Plant } Block_Shape;
 void Blocks_InitTexture(Texture_Map* map);
 void Blocks_GetUVs(Block block, Direction side, uint8_t* out);
 Block_Shape Blocks_GetShape(Block block);
+
 const char* Blocks_GetNameStr(Block block);
+
+/*#ifndef WORLD_H_INCLUDED
+typedef void World;
+#endif*/
+
+// TODO: in eine andere Datei aufspalten um void* zu vermeiden
+//       --------------+++++
+//                     |||||
+//                     vvvvv
+void Blocks_RandomTick(void* w, uint32_t x, uint32_t y, uint32_t z);
+//                     ~~~~
 
 #endif  // !BLOCK_H_INCLUDED

@@ -1,5 +1,7 @@
 #include "craftus/world/blocks.h"
 
+#include "craftus/world/world.h"
+
 #define PREFIX "romfs:/textures/blocks/"
 
 #define STONEP PREFIX "stone.png"
@@ -92,5 +94,21 @@ const char* Blocks_GetNameStr(Block block) {
 			return "Stonebrick";
 		case Blocks_Count:
 			return "Report an error if you see this text";
+	}
+}
+
+void Blocks_RandomTick(void* w, uint32_t x, uint32_t y, uint32_t z) {
+	World* world = (World*)w;
+	switch (World_GetBlock(world, x, y, z)) {
+		case Block_Dirt:
+			if (World_GetBlock(world, x, y + 1, z) == Block_Air) {
+				World_SetBlock(world, x, y, z, Block_Grass);
+			}
+			break;
+		case Block_Grass:
+			if (World_GetBlock(world, x, y + 1, z) != Block_Air) {
+				World_SetBlock(world, x, y, z, Block_Dirt);
+			}
+			break;
 	}
 }

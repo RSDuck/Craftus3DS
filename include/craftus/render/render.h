@@ -3,15 +3,19 @@
 
 #include <stdbool.h>
 
-#include "craftus/world/world.h"
 #include "craftus/entity/player.h"
+#include "craftus/world/world.h"
+
+#include "craftus/world/chunkworker.h"
 
 void Render_Init();
 void Render_Exit();
 
 void Render(Player* player);
 
-bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk);
+bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk, bool ignoreIfLocked);
+
+bool BlockRender_TaskPolygonizeChunk(ChunkWorker_Queue* queue, ChunkWorker_Task task);
 
 typedef struct {
 	int16_t xz[2];

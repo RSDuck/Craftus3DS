@@ -5,14 +5,12 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <cNBT/nbt.h>
-
 static World* workingWorld;
 
 static void saveManifest() {
 	char tmpStr[100];
 
-	mkdir(workingWorld->name);
+	mkdir(workingWorld->name, 777);
 
 	sprintf(tmpStr, "./craftus/saves/%s/level.dat", workingWorld->name);
 }

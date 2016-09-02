@@ -90,7 +90,7 @@ inline int ChunkCache_LocalizeChunkZ(ChunkCache* cache, int z) { return BlockToC
 
 typedef vec_t(Chunk*) ChunkVec;
 
-enum World_ErrorFlags { World_ErrUnloadedBlockRequested = 1, World_ErrLockedBlockRequested = 2 };
+enum World_ErrorFlags { World_ErrUnloadedBlockRequested = BIT(0), World_ErrLockedBlockRequested = BIT(1) };
 
 enum World_GenType { World_GenNormal = 0, World_GenSuperFlat = 1 };
 
@@ -111,6 +111,8 @@ typedef struct {
 	Chunk* afterLife[CHUNK_AFTERLIFE_SIZE];
 
 	int errFlags;
+
+	uint32_t tickRandom;
 } World;
 
 World* World_New();
@@ -129,5 +131,7 @@ void World_Profile(World* world);
 void World_FreeChunk(World* world, Chunk* chunk);
 
 Chunk* World_FastChunkAccess(World* world, int x, int z);
+
+int World_GetHeight(World* world, int x, int z);
 
 #endif  // !WORLD_H_INCLUDED

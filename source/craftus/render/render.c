@@ -103,7 +103,7 @@ static void polygonizeWorld(World* world) {
 		for (int z = 0; z < CACHE_SIZE; z++) {
 			Chunk* c = cache->cache[x][z];
 			if (c->flags & ClusterFlags_VBODirty) {
-				if (BlockRender_PolygonizeChunk(world, c)) {
+				if (BlockRender_PolygonizeChunk(world, c, true)) {
 					c->flags &= ~ClusterFlags_VBODirty;
 					return;
 				}
@@ -123,6 +123,8 @@ static void drawWorld(Player* player) {
 
 	ChunkCache* cache = player->cache;
 
+	int verticesTotal = 0;
+
 	int yStart = (int)player->y / CHUNK_CLUSTER_HEIGHT;
 	// TODO: Multthreading für Chunk polygonisierung
 	int length = 1;
@@ -132,28 +134,34 @@ static void drawWorld(Player* player) {
 	int turn = 0;
 	int totalTurn = 0;
 	while (true) {  // Zeichnet die Chunks in Schlangenform und dadurch automatisch die vordersten zuerst
-		// if (pX == 0 || pZ == 0 || pX == CACHE_SIZE - 1 || pZ == CACHE_SIZE - 1) break;  // Renderdistanz runterschrauben
 		for (int i = 0; i < length; i++) {
 			Chunk* c = cache->cache[pX][pZ];
 			float chunkX = c->x * CHUNK_WIDTH, chunkZ = c->z * CHUNK_DEPTH;
 			float distXZSqr = (chunkX - player->x) * (chunkX - player->x) + (chunkZ - player->z) * (chunkZ - player->z);
-			if (distXZSqr <= ((M_PI + 0.5f - fabsf(player->pitch)) * 16.f * (M_PI + 0.5f - fabsf(player->pitch)) * 16.f))
-				if (Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, 0.f, chunkX}, (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH})) {
+			if (!(c->flags & ClusterFlags_InProcess) &&
+			    distXZSqr <= ((M_PI + 1.f - fabsf(player->pitch)) * 16.f * (M_PI + 1.f - fabsf(player->pitch)) * 16.f))
+				if (Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, 0.f, chunkX},
+							 (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH})) {
 					bool passed = false;
 
 					for (int j = 0; j < CHUNK_CLUSTER_COUNT; j++) {
 						float distYSqr = j * CHUNK_CLUSTER_HEIGHT - player->y;
-						if (c->data[j].vbo && c->data[j].vertexCount && distYSqr <= (fabsf(player->pitch) + 0.5f) * 16.f) {
-							bool visible = Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, j * CHUNK_CLUSTER_HEIGHT, chunkX},
-											    (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_CLUSTER_HEIGHT, CHUNK_WIDTH});
+						if (c->data[j].vbo && c->data[j].vertexCount &&
+						    distYSqr <= (fabsf(player->pitch) + 1.f) * 16.f) {
+							bool visible = Camera_IsAABBVisible(
+							    &camera, (C3D_FVec){1.f, chunkZ, j * CHUNK_CLUSTER_HEIGHT, chunkX},
+							    (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_CLUSTER_HEIGHT, CHUNK_WIDTH});
 							if (visible) {
 								C3D_BufInfo bufInfo;
 								BufInfo_Init(&bufInfo);
+
 								BufInfo_Add(&bufInfo, c->data[j].vbo, sizeof(world_vertex), 2, 0x10);
 
 								C3D_SetBufInfo(&bufInfo);
 
 								C3D_DrawArrays(GPU_TRIANGLES, 0, c->data[j].vertexCount);
+
+								verticesTotal += c->data[j].vertexCount;
 
 								passed = true;
 							} else if (passed)
@@ -179,7 +187,7 @@ static void drawWorld(Player* player) {
 		totalTurn++;
 	}
 
-	// printf("%d Chunks drawn", chunksDrawn);
+	printf("%d vertices\n", verticesTotal);
 }
 
 static inline void immWorldVtx(float x, float y, float z, float u, float v, float brightness) {
@@ -259,7 +267,8 @@ static void drawCursor(Player* player) {
 
 		C3D_DrawArrays(GPU_TRIANGLES, 0, 36);
 
-		C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA);
+		C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_SRC_ALPHA,
+			       GPU_ONE_MINUS_SRC_ALPHA);
 
 		env = C3D_GetTexEnv(0);
 		C3D_TexEnvSrc(env, C3D_Both, GPU_TEXTURE0, GPU_PRIMARY_COLOR, 0);

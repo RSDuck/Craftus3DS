@@ -40,7 +40,7 @@ void ChunkWorker_Stop(ChunkWorker* worker) {
 	free(worker);
 }
 
-static int priority_sort(const void* a, const void* b) { return ((ChunkWorker_Handler*)b)->priority - ((ChunkWorker_Handler*)a)->priority; }
+static int priority_sort(const void* a, const void* b) { return ((ChunkWorker_Handler*)a)->priority - ((ChunkWorker_Handler*)b)->priority; }
 
 void ChunkWorker_AddHandler(ChunkWorker* worker, ChunkWorker_TaskType type, ChunkWorker_HandlerFunc handlerFunc, int priority) {
 	LightLock_Lock(&worker->lock);
@@ -50,7 +50,7 @@ void ChunkWorker_AddHandler(ChunkWorker* worker, ChunkWorker_TaskType type, Chun
 	handler.priority = priority;
 	vec_push(&worker->handler[type], handler);
 
-	vec_sort(&worker->handler[type], &priority_sort);
+	// vec_sort(&worker->handler[type], &priority_sort);
 
 	LightLock_Unlock(&worker->lock);
 }
@@ -61,6 +61,7 @@ void ChunkWorker_AddJob(ChunkWorker* worker, Chunk* chunk, ChunkWorker_TaskType 
 	ChunkWorker_Task task;
 	task.type = type;
 	task.chunk = chunk;
+	task.world = worker->world;
 	vec_push(&worker->queue[worker->currentQueue], task);
 }
 
@@ -74,19 +75,28 @@ void ChunkWorker_Main(void* args) {
 			int operatingOn = worker->currentQueue;
 			worker->currentQueue ^= 1;
 
-			while (worker->queue[operatingOn].length > 0) {
-				ChunkWorker_Task task = vec_pop(&worker->queue[operatingOn]);
-				// printf("Handling task of type %d\n", task.type);
-
-				for (int i = 0; i < worker->handler[task.type].length; i++) {
-					worker->handler[task.type].data[i].func(&worker->queue[operatingOn], task);
+			if (worker->queue[operatingOn].length > 0) {
+				for (int i = 0; i < ChunkWorker_TaskTypeCount; i++) {
+					// printf("Handling all tasks of type %d\n", i);
+					for (int j = 0; j < worker->handler[i].length; j++) {
+						// printf("Executing handler %d\n", j);
+						for (int k = 0; k < worker->queue[operatingOn].length; k++) {
+							if (worker->queue[operatingOn].data[k].type == i) {
+								// printf("Executing task %d\n", k);
+								worker->handler[i].data[j].func(&worker->queue[worker->currentQueue],
+												worker->queue[operatingOn].data[k]);
+							}
+							svcSleepThread(20000);
+						}
+						svcSleepThread(10000);
+					}
 				}
-				// vec_push(&unlockList, task.chunk);
-				task.chunk->flags &= ~ClusterFlags_InProcess;
-
-				svcSleepThread(1000110);
+				int length = worker->queue[operatingOn].length;
+				for (int i = 0; i < length; i++) {
+					worker->queue[operatingOn].data[i].chunk->flags &= ~ClusterFlags_InProcess;
+				}
+				vec_clear(&worker->queue[operatingOn]);
 			}
-			// while (unlockList.length > 0) vec_pop(&unlockList)->flags &= ~ClusterFlags_InProcess;
 
 			LightLock_Unlock(&worker->lock);
 

@@ -7,7 +7,7 @@
 
 #include "world.h"
 
-#define CHUNKWORKER_THREAD_STACKSIZE (4 * 1024)
+#define CHUNKWORKER_THREAD_STACKSIZE (8 * 1024)
 
 typedef enum {
 	ChunkWorker_TaskOpenChunk,
@@ -18,6 +18,7 @@ typedef enum {
 } ChunkWorker_TaskType;
 typedef struct {
 	ChunkWorker_TaskType type;
+	World* world;
 	Chunk* chunk;
 } ChunkWorker_Task;
 

@@ -64,6 +64,7 @@ int main(int argc, char* argv[]) {
 	Render_Init();
 
 	World* world = World_New();
+	// world->genConfig.type = World_GenSuperFlat;
 	WorldGen_Setup(world);
 
 	cworker = ChunkWorker_New(world);
@@ -73,21 +74,22 @@ int main(int argc, char* argv[]) {
 	} else {
 		ChunkWorker_AddHandler(cworker, ChunkWorker_TaskDecorateChunk, &generateFlatWorld_test, 0);
 	}
+	ChunkWorker_AddHandler(cworker, ChunkWorker_TaskDecorateChunk, &BlockRender_TaskPolygonizeChunk, -100);
 
 	Player* player = Player_New();
 	Player_Spawn(player, world);
 
 	consoleSelect(&consoleStatus);
-	float max = cworker->queue[cworker->currentQueue].length + cworker->queue[cworker->currentQueue ^ 1].length;
+	float max = cworker->queue[0].length + cworker->queue[1].length;
 	// Hier könnte später ein Ladebildschirm hin("Welt wird geladen, Landschaft wird generiert")
-	while (cworker->queue[cworker->currentQueue].length > 0 || cworker->queue[cworker->currentQueue ^ 1].length > 0) {
-		float current = cworker->queue[cworker->currentQueue].length + cworker->queue[cworker->currentQueue ^ 1].length;
+	while (cworker->queue[0].length > 0 || cworker->queue[1].length > 0) {
+		float current = cworker->queue[0].length + cworker->queue[1].length;
 		consoleClear();
 		printf("Generating world %d%%\n", 100 - (int)((current / max) * 100.f) + 1);
 		svcSleepThread(4800000);
 	}
 
-	for (int x = 0; x < CACHE_SIZE; x++) {
+	/*for (int x = 0; x < CACHE_SIZE; x++) {
 		for (int z = 0; z < CACHE_SIZE; z++) {
 			if (world->cache[0]->cache[x][z]->flags & ClusterFlags_VBODirty)
 				if (BlockRender_PolygonizeChunk(world, world->cache[0]->cache[x][z])) {
@@ -95,7 +97,7 @@ int main(int argc, char* argv[]) {
 				}
 		}
 		printf("Row %d finished\n", x);
-	}
+	}*/
 
 	u64 time = osGetTime(), tickClock = 0, deltaTime = 0, fpsClock = 0;
 	u32 fps = 0, fpsCounter = 0;
@@ -119,7 +121,8 @@ int main(int argc, char* argv[]) {
 		consoleSelect(&consoleStatus);
 		consoleClear();
 
-		printf("Player: %f, %f, %f \n", player->x, player->y, player->z);
+		printf("Player: %f, %f, %f Tasks: %d\n", player->x, player->y, player->z,
+		       cworker->queue[0].length + cworker->queue[1].length);
 		printf("FPS: %d", fps);
 
 		u32 input = hidKeysHeld();

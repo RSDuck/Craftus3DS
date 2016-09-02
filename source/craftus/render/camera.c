@@ -3,7 +3,7 @@
 void Camera_Init(Camera* cam) {
 	Mtx_Identity(&cam->view);
 
-	cam->fov = 50.f * M_PI / 180.f;
+	cam->fov = 40.f * M_PI / 180.f;
 	cam->near = 0.01f, cam->far = 100.f;
 
 	Mtx_PerspTilt(&cam->projection, cam->fov, 400.f / 240.f, cam->near, cam->far, false);
@@ -33,7 +33,7 @@ void Camera_Update(Camera* cam, Player* player, float iod) {
 	cam->frustumPlanes[Frustum_Far] = FVec4_Add(rowW, rowZ);
 
 	for (int i = 0; i < Frustum_Count; i++) {
-		float length = FVec4_Magnitude(cam->frustumPlanes[i]);
+		float length = FVec3_Magnitude(cam->frustumPlanes[i]);
 		cam->frustumPlanes[i].x /= length;
 		cam->frustumPlanes[i].y /= length;
 		cam->frustumPlanes[i].z /= length;
