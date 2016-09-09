@@ -7,6 +7,7 @@
 #include <3ds/types.h>
 
 #include "craftus/misc/box.h"
+#include "craftus/render/vbocache.h"
 #include "craftus/world/blocks.h"
 
 #include "pool/pool.h"
@@ -27,8 +28,7 @@ typedef struct {
 	Block blocks[CHUNK_WIDTH][CHUNK_CLUSTER_HEIGHT][CHUNK_DEPTH];
 	int flags;
 
-	float* vbo;
-	int vboSize;
+	VBO_Block vbo;
 
 	int vertexCount;
 } Cluster;

@@ -13,7 +13,7 @@ typedef enum {
 	ChunkWorker_TaskOpenChunk,
 	ChunkWorker_TaskSaveChunk,
 	ChunkWorker_TaskDecorateChunk,
-	ChunkWorker_PolygonizeChunk,
+	ChunkWorker_TaskPolygonizeChunk,
 	ChunkWorker_TaskTypeCount
 } ChunkWorker_TaskType;
 typedef struct {

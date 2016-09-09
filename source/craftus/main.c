@@ -33,6 +33,11 @@ static bool generateFlatWorld_test(ChunkWorker_Queue* queue, ChunkWorker_Task ta
 	return false;
 }
 
+/*#define consoleInit(a, b)
+#define consoleClear(a)
+#define consoleSelect(a)
+#define consoleSetWindow(a, b, c, d, e)*/
+
 ChunkWorker* cworker;
 int main(int argc, char* argv[]) {
 	HIDUSER_EnableGyroscope();
@@ -74,7 +79,6 @@ int main(int argc, char* argv[]) {
 	} else {
 		ChunkWorker_AddHandler(cworker, ChunkWorker_TaskDecorateChunk, &generateFlatWorld_test, 0);
 	}
-	ChunkWorker_AddHandler(cworker, ChunkWorker_TaskDecorateChunk, &BlockRender_TaskPolygonizeChunk, -100);
 
 	Player* player = Player_New();
 	Player_Spawn(player, world);
@@ -89,15 +93,15 @@ int main(int argc, char* argv[]) {
 		svcSleepThread(4800000);
 	}
 
-	/*for (int x = 0; x < CACHE_SIZE; x++) {
+	for (int x = 0; x < CACHE_SIZE; x++) {
 		for (int z = 0; z < CACHE_SIZE; z++) {
 			if (world->cache[0]->cache[x][z]->flags & ClusterFlags_VBODirty)
-				if (BlockRender_PolygonizeChunk(world, world->cache[0]->cache[x][z])) {
+				if (BlockRender_PolygonizeChunk(world, world->cache[0]->cache[x][z], false)) {
 					world->cache[0]->cache[x][z]->flags &= ~ClusterFlags_VBODirty;
 				}
 		}
 		printf("Row %d finished\n", x);
-	}*/
+	}
 
 	u64 time = osGetTime(), tickClock = 0, deltaTime = 0, fpsClock = 0;
 	u32 fps = 0, fpsCounter = 0;
@@ -134,7 +138,7 @@ int main(int argc, char* argv[]) {
 
 		// gfxFlushBuffers();
 
-		// consoleSelect(&consoleEvent);
+		consoleSelect(&consoleEvent);
 
 		Render(player);
 

@@ -68,34 +68,21 @@ void ChunkWorker_AddJob(ChunkWorker* worker, Chunk* chunk, ChunkWorker_TaskType 
 void ChunkWorker_Main(void* args) {
 	// printf("Hello from a worker thread\n");
 	ChunkWorker* worker = (ChunkWorker*)args;
-	vec_t(Chunk*) unlockList;
-	vec_init(&unlockList);
 	while (worker != workerToStop) {
 		if (!LightLock_TryLock(&worker->lock)) {
 			int operatingOn = worker->currentQueue;
 			worker->currentQueue ^= 1;
 
-			if (worker->queue[operatingOn].length > 0) {
-				for (int i = 0; i < ChunkWorker_TaskTypeCount; i++) {
-					// printf("Handling all tasks of type %d\n", i);
-					for (int j = 0; j < worker->handler[i].length; j++) {
-						// printf("Executing handler %d\n", j);
-						for (int k = 0; k < worker->queue[operatingOn].length; k++) {
-							if (worker->queue[operatingOn].data[k].type == i) {
-								// printf("Executing task %d\n", k);
-								worker->handler[i].data[j].func(&worker->queue[worker->currentQueue],
-												worker->queue[operatingOn].data[k]);
-							}
-							svcSleepThread(20000);
-						}
-						svcSleepThread(10000);
-					}
+			while (worker->queue[operatingOn].length > 0) {
+				ChunkWorker_Task task = vec_pop(&worker->queue[operatingOn]);
+
+				for (int i = 0; i < worker->handler[task.type].length; i++) {
+					worker->handler[task.type].data[i].func(&worker->queue[operatingOn], task);
 				}
-				int length = worker->queue[operatingOn].length;
-				for (int i = 0; i < length; i++) {
-					worker->queue[operatingOn].data[i].chunk->flags &= ~ClusterFlags_InProcess;
-				}
-				vec_clear(&worker->queue[operatingOn]);
+				// vec_push(&unlockList, task.chunk);
+				task.chunk->flags &= ~ClusterFlags_InProcess;
+
+				svcSleepThread(1000110);
 			}
 
 			LightLock_Unlock(&worker->lock);
@@ -103,6 +90,5 @@ void ChunkWorker_Main(void* args) {
 			svcSleepThread(1000000);
 		}
 	}
-	vec_deinit(&unlockList);
 	printf("It's time so say goodbye for the worker thread\n");
 }

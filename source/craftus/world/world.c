@@ -94,7 +94,7 @@ Chunk* World_GetChunk(World* world, int x, int z) {
 }
 
 void World_FreeChunk(World* world, Chunk* chunk) {
-	for (int j = 0; j < CHUNK_CLUSTER_COUNT; j++) linearFree(chunk->data[j].vbo);
+	for (int j = 0; j < CHUNK_CLUSTER_COUNT; j++) VBO_Free(chunk->data[j].vbo);
 	poolFree(&world->chunkpool, chunk);
 }
 

@@ -1,9 +1,11 @@
 #include "craftus/render/render.h"
 
+#include "craftus/render/vbocache.h"
 #include "craftus/world/chunkworker.h"
 
 #include <citro3d.h>
 
+#include <setjmp.h>
 #include <stdio.h>
 
 const world_vertex plantmodel[] = {
@@ -141,24 +143,20 @@ const int aoTable[Directions_Count][4][3] = {
     {{0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}}, {{0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}},
 };
 
-bool BlockRender_TaskPolygonizeChunk(ChunkWorker_Queue* queue, ChunkWorker_Task task) {
-	if (BlockRender_PolygonizeChunk(task.world, task.chunk, false)) task.chunk->flags &= ~ClusterFlags_VBODirty;
-	return true;
-}
+bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk, bool progressive) {
+	if (chunk->flags & ClusterFlags_InProcess) return false;
 
-bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk, bool ignoreIfLocked) {
-	if (chunk->flags & ClusterFlags_InProcess && ignoreIfLocked) return false;
+	int clean = 0;
 
 	Chunk_RecalcHeightMap(chunk);
 
 	for (int i = 0; i < CHUNK_CLUSTER_COUNT; i++) {
 		Cluster* cluster = &chunk->data[i];
 		if (cluster->flags & ClusterFlags_VBODirty) {
-			int blocksNotAir = 0;
 #define MAX_SIDES (6 * (CHUNK_WIDTH * CHUNK_CLUSTER_HEIGHT * CHUNK_DEPTH / 2))
-			static Side sideBufs[2][MAX_SIDES];
-			Side* sides = sideBufs[ignoreIfLocked];
+			static Side sides[MAX_SIDES];
 			int sideCurrent = 0;
+			int blocksNotAir = 0;
 
 			for (int x = 0; x < CHUNK_WIDTH; x++)
 				for (int z = 0; z < CHUNK_DEPTH; z++) {
@@ -166,7 +164,7 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk, bool ignoreIfLocked
 						if (cluster->blocks[x][y][z] != Block_Air) {
 							blocksNotAir++;
 							for (int j = 0; j < Directions_Count; j++) {
-								const int* pos = DirectionToPosition[j];
+								const int* pos = &DirectionToPosition[j];
 
 								if (fastBlockFetch(world, chunk, cluster, x + pos[0], y + pos[1],
 										   z + pos[2]) == Block_Air) {
@@ -185,7 +183,9 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk, bool ignoreIfLocked
 													   z + pos[2] + aoOffset[2]) !=
 											    Block_Air) {
 												sides[sideCurrent].sideAO |= 1 << (4 + k);
-												// printf("AO Side %d, %d, %d\n", x, y, z);
+												// printf("AO Side %d, %d,
+												// %d\n", x,
+												// y, z);
 											}
 										}
 										sideCurrent++;
@@ -194,8 +194,8 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk, bool ignoreIfLocked
 							}
 						}
 					}
-					if (!ignoreIfLocked) svcSleepThread(1000);
 				}
+
 			int vboBytestNeeded = sizeof(world_vertex) * 6 * sideCurrent;
 			if (!vboBytestNeeded) {
 				cluster->vertexCount = 0;
@@ -205,11 +205,11 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk, bool ignoreIfLocked
 			}
 
 			if (cluster->vbo == NULL || cluster->vboSize == 0) {
-				cluster->vbo = linearAlloc(vboBytestNeeded + (sizeof(world_vertex) * 24));
+				cluster->vbo = VBO_Alloc(vboBytestNeeded + (sizeof(world_vertex) * 24));
 				cluster->vboSize = vboBytestNeeded + (sizeof(world_vertex) * 24);
 			} else if (cluster->vboSize < vboBytestNeeded) {
-				linearFree(cluster->vbo);
-				cluster->vbo = linearAlloc(vboBytestNeeded + (sizeof(world_vertex) * 24));
+				VBO_Free(cluster->vbo);
+				cluster->vbo = VBO_Alloc(vboBytestNeeded + (sizeof(world_vertex) * 24));
 				cluster->vboSize = vboBytestNeeded + (sizeof(world_vertex) * 24);
 			}
 			if (!cluster->vbo) printf("VBO allocation failed\n");
@@ -270,10 +270,21 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk, bool ignoreIfLocked
 				vertexCount += 6;
 			}
 
+			/*{
+				FILE* f = fopen("chunk_sizes.txt", "a");
+				fprintf(f, "%dkb|\t%d sides|\t%d blocks\n", vboBytestNeeded, sideCurrent, blocksNotAir);
+				fclose(f);
+			}*/
+
 			cluster->vertexCount = vertexCount;
 
 			cluster->flags &= ~ClusterFlags_VBODirty;
-		}
+
+			clean++;
+
+			if (progressive) break;
+		} else
+			clean++;
 	}
-	return true;
+	return clean == CHUNK_CLUSTER_COUNT;
 }

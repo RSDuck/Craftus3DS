@@ -6,6 +6,7 @@
 #include <citro3d.h>
 
 #include "craftus/render/render.h"
+#include "craftus/render/vbocache.h"
 
 #include "craftus/entity/player.h"
 #include "craftus/render/camera.h"
@@ -82,9 +83,13 @@ void Render_Init() {
 		cursorVBO[i].yuvb[3] = 20;
 	}
 	GX_FlushCacheRegions((u32*)cursorVBO, sizeof(cube_sides_lut), NULL, 0, NULL, 0);
+
+	VBOCache_Init();
 }
 
 void Render_Exit() {
+	VBOCache_Free();
+
 	linearFree(cursorVBO);
 
 	C3D_TexDelete(&texturemap.texture);
@@ -123,6 +128,8 @@ static void drawWorld(Player* player) {
 
 	ChunkCache* cache = player->cache;
 
+	void* test = NULL;
+
 	int verticesTotal = 0;
 
 	int yStart = (int)player->y / CHUNK_CLUSTER_HEIGHT;
@@ -133,7 +140,7 @@ static void drawWorld(Player* player) {
 	int flipper = 2;
 	int turn = 0;
 	int totalTurn = 0;
-	while (true) {  // Zeichnet die Chunks in Schlangenform und dadurch automatisch die vordersten zuerst
+	while (true) {  // Zeichnet die Chunks in Schlangenform und dadurch automatisch tsie vordersten zuerst
 		for (int i = 0; i < length; i++) {
 			Chunk* c = cache->cache[pX][pZ];
 			float chunkX = c->x * CHUNK_WIDTH, chunkZ = c->z * CHUNK_DEPTH;
@@ -144,30 +151,33 @@ static void drawWorld(Player* player) {
 							 (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH})) {
 					bool passed = false;
 
-					for (int j = 0; j < CHUNK_CLUSTER_COUNT; j++) {
-						float distYSqr = j * CHUNK_CLUSTER_HEIGHT - player->y;
-						if (c->data[j].vbo && c->data[j].vertexCount &&
-						    distYSqr <= (fabsf(player->pitch) + 1.f) * 16.f) {
-							bool visible = Camera_IsAABBVisible(
-							    &camera, (C3D_FVec){1.f, chunkZ, j * CHUNK_CLUSTER_HEIGHT, chunkX},
-							    (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_CLUSTER_HEIGHT, CHUNK_WIDTH});
-							if (visible) {
-								C3D_BufInfo bufInfo;
-								BufInfo_Init(&bufInfo);
+					for (int k = -1; k < 2; k += 2)
+						for (int j = (FastFloor(player->y) < 0.f) ? 0.f : FastFloor(player->y);
+						     (j < CHUNK_CLUSTER_COUNT && k == 1) || (j >= 0 && k == -1); j += k) {
+							float distYSqr = j * CHUNK_CLUSTER_HEIGHT - player->y;
+							if (c->data[j].vbo.memory && c->data[j].vertexCount &&
+							    distYSqr <= (fabsf(player->pitch) + 1.f) * 16.f) {
+								bool visible = Camera_IsAABBVisible(
+								    &camera, (C3D_FVec){1.f, chunkZ, j * CHUNK_CLUSTER_HEIGHT, chunkX},
+								    (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_CLUSTER_HEIGHT, CHUNK_WIDTH});
+								if (visible) {
+									C3D_BufInfo bufInfo;
+									BufInfo_Init(&bufInfo);
 
-								BufInfo_Add(&bufInfo, c->data[j].vbo, sizeof(world_vertex), 2, 0x10);
+									BufInfo_Add(&bufInfo, c->data[j].vbo.memory, sizeof(world_vertex),
+										    2, 0x10);
 
-								C3D_SetBufInfo(&bufInfo);
+									C3D_SetBufInfo(&bufInfo);
 
-								C3D_DrawArrays(GPU_TRIANGLES, 0, c->data[j].vertexCount);
+									C3D_DrawArrays(GPU_TRIANGLES, 0, c->data[j].vertexCount);
 
-								verticesTotal += c->data[j].vertexCount;
+									verticesTotal += c->data[j].vertexCount;
 
-								passed = true;
-							} else if (passed)
-								break;
+									passed = true;
+								} else if (passed)
+									break;
+							}
 						}
-					}
 
 					chunksDrawn++;
 				}
@@ -187,7 +197,7 @@ static void drawWorld(Player* player) {
 		totalTurn++;
 	}
 
-	printf("%d vertices\n", verticesTotal);
+	// printf("%d vertices\n", verticesTotal);
 }
 
 static inline void immWorldVtx(float x, float y, float z, float u, float v, float brightness) {
@@ -277,27 +287,14 @@ static void drawCursor(Player* player) {
 }
 
 void Render(Player* player) {
-	C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+	if (C3D_FrameBegin(C3D_FRAME_SYNCDRAW)) {
+		polygonizeWorld(player->world);
 
-	polygonizeWorld(player->world);
+		float iod = osGet3DSliderState() / 3.f;
 
-	float iod = osGet3DSliderState() / 3.f;
+		C3D_FrameDrawOn(target);
 
-	C3D_FrameDrawOn(target);
-
-	Camera_Update(&camera, player, -iod);
-	C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocProjection, &camera.projection);
-
-	drawWorld(player);
-
-	drawCursor(player);
-
-	drawGUI(player, iod);
-
-	if (iod > 0.f) {
-		C3D_FrameDrawOn(rightTarget);
-
-		Camera_Update(&camera, player, iod);
+		Camera_Update(&camera, player, -iod);
 		C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocProjection, &camera.projection);
 
 		drawWorld(player);
@@ -305,7 +302,20 @@ void Render(Player* player) {
 		drawCursor(player);
 
 		drawGUI(player, iod);
-	}
 
-	C3D_FrameEnd(0);
+		if (iod > 0.f) {
+			C3D_FrameDrawOn(rightTarget);
+
+			Camera_Update(&camera, player, iod);
+			C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocProjection, &camera.projection);
+
+			drawWorld(player);
+
+			drawCursor(player);
+
+			drawGUI(player, iod);
+		}
+
+		C3D_FrameEnd(0);
+	}
 }

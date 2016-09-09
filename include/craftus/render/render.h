@@ -13,9 +13,7 @@ void Render_Exit();
 
 void Render(Player* player);
 
-bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk, bool ignoreIfLocked);
-
-bool BlockRender_TaskPolygonizeChunk(ChunkWorker_Queue* queue, ChunkWorker_Task task);
+bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk, bool progressive);
 
 typedef struct {
 	int16_t xz[2];
