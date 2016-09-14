@@ -37,6 +37,7 @@ typedef struct {
 	int x, z;
 	int referenced;
 
+	u32 heightMapEdit;
 	u8 heightmap[CHUNK_WIDTH][CHUNK_DEPTH];
 
 	int vertexCount;
@@ -44,7 +45,7 @@ typedef struct {
 	int flags;
 
 	u32 editsCounter;
-	u32 taskPending;
+	u32 tasksPending;
 
 	Cluster data[CHUNK_CLUSTER_COUNT];
 } Chunk;
@@ -65,7 +66,7 @@ inline int Chunk_GetLocalZ(int z) {
 
 void Chunk_RecalcHeightMap(Chunk* chunk);
 
-inline int FastFloor(float x) { return (int)x - (x < (int)x); }
+__attribute__((const)) inline int FastFloor(float x) { return (int)x - (x < (int)x); }
 
 inline void Chunk_SetBlock(Chunk* c, int x, int y, int z, Block block) {
 	c->data[y / CHUNK_CLUSTER_HEIGHT].blocks[x][y - (y / CHUNK_CLUSTER_HEIGHT * CHUNK_CLUSTER_HEIGHT)][z] = block;

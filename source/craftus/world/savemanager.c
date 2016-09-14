@@ -55,22 +55,20 @@ static void saveIndex() {
 	mpack_write_cstr(&writer, "chunks");
 	mpack_start_array(&writer, savedChunks.length);
 	for (int i = 0; i < savedChunks.length; i++) {
-		mpack_start_map(&writer, 3);
+		mpack_start_map(&writer, 6);
 
 		mpack_write_cstr(&writer, "x");
 		mpack_write_i32(&writer, savedChunks.data[i].x);
-
 		mpack_write_cstr(&writer, "z");
 		mpack_write_i32(&writer, savedChunks.data[i].z);
-
 		mpack_write_cstr(&writer, "filePosition");
 		mpack_write_i32(&writer, savedChunks.data[i].filePosition);
-
 		mpack_write_cstr(&writer, "editCounter");
 		mpack_write_i32(&writer, savedChunks.data[i].editCounter);
-
 		mpack_write_cstr(&writer, "inUse");
 		mpack_write_bool(&writer, savedChunks.data[i].inUse);
+		mpack_write_cstr(&writer, "size");
+		mpack_write_i32(&writer, savedChunks.data[i].size);
 
 		mpack_finish_map(&writer);
 	}
@@ -106,8 +104,9 @@ static void loadIndex() {
 		vec_push(&savedChunks, entry);
 	}
 
-	if (mpack_tree_destroy(&tree) != mpack_ok) {
-		printf("Error while loading chunk index\n");
+	int err = mpack_tree_destroy(&tree);
+	if (err != mpack_ok) {
+		printf("Error while loading chunk index %d\n", err);
 	}
 }
 
@@ -127,11 +126,14 @@ static void saveManifest() {
 	}
 }
 
-static savedChunk serializeChunk(Chunk* chunk) {
-	char* data;
-	size_t size;
+static savedChunk serializeChunk(Chunk* chunk, bool testRun) {
 	mpack_writer_t writer;
-	mpack_writer_init_growable(&writer, &data, &size);
+	size_t size;
+	char* ptr;
+	if (testRun)
+		mpack_writer_init_growable(&writer, &ptr, &size);
+	else
+		mpack_writer_init(&writer, cacheMemForChunk, serializedSizeInMem);
 
 	mpack_start_map(&writer, 2);
 
@@ -152,15 +154,16 @@ static savedChunk serializeChunk(Chunk* chunk) {
 
 	mpack_finish_map(&writer);
 
-	if (mpack_writer_destroy(&writer) != mpack_ok) {
-		printf("Error while serializing chunk\n");
+	int err = mpack_writer_destroy(&writer);
+	if (err != mpack_ok) {
+		printf("Error while serializing chunk(%d)\n", err);
 	}
 
 	savedChunk out;
 	out.x = chunk->x;
 	out.z = chunk->z;
-	out.data = data;
-	out.size = size;
+	out.data = testRun ? ptr : cacheMemForChunk;
+	out.size = testRun ? size : serializedSizeInMem;
 
 	return out;
 }
@@ -180,7 +183,7 @@ static void deserializeChunk(savedChunk data, Chunk* out) {
 			mpack_node_t node = mpack_node_map_cstr(cluster, "blocks");
 			Block* blocks = (Block*)mpack_node_data(node);
 			memcpy(out->data[i].blocks, blocks, sizeof(out->data[i].blocks));
-			out->data[i].flags |= ClusterFlags_VBODirty;
+			out->data[i].flags = (out->data[i].flags & ~ClusterFlags_Empty) | ClusterFlags_VBODirty;
 		} else
 			out->data[i].flags |= ClusterFlags_Empty;
 	}
@@ -188,6 +191,7 @@ static void deserializeChunk(savedChunk data, Chunk* out) {
 
 	mpack_node_t heightmap = mpack_node_map_cstr(root, "heightmap");
 	memcpy(out->heightmap, mpack_node_data(heightmap), sizeof(out->heightmap));
+	out->heightMapEdit = out->editsCounter;
 
 	mpack_error_t err = mpack_tree_destroy(&tree);
 	if (err != mpack_ok) {
@@ -198,7 +202,7 @@ static void deserializeChunk(savedChunk data, Chunk* out) {
 void SaveManager_Init(World* world) {
 	{
 		Chunk* c = (Chunk*)malloc(sizeof(Chunk));
-		savedChunk sC = serializeChunk(c);
+		savedChunk sC = serializeChunk(c, true);
 		serializedSizeInMem = sC.size;
 		free(sC.data);
 		free(c);
@@ -215,8 +219,9 @@ void SaveManager_Init(World* world) {
 	sprintf(indexPath, "sdmc:/craftus/saves/%s/index.mpack", world->name);
 
 	char worldDir[64];
+	sprintf(worldDir, "sdmc:/craftus/saves", world->name);
+	mkdir(worldDir, 777);
 	sprintf(worldDir, "sdmc:/craftus/saves/%s", world->name);
-
 	mkdir(worldDir, 777);
 
 	mpack_tree_t tree;
@@ -267,13 +272,12 @@ void SaveManager_Flush() { saveIndex(); }
 bool SaveManager_SaveChunk(ChunkWorker_Queue* queue, ChunkWorker_Task task) {
 	chunkEntry chunk;
 	int i;
-	savedChunk newChunk = serializeChunk(task.chunk);
-	// printf("Saving chunk(%d, %d)... ", task.chunk->x, task.chunk->z);
+	savedChunk newChunk = serializeChunk(task.chunk, false);
 
-	// printf("Saving chunk\n");
+	printf("Saving chunk(%d, %d)...\n", task.chunk->x, task.chunk->z);
 	vec_foreach (&savedChunks, chunk, i) {
 		if ((task.chunk->x == chunk.x && task.chunk->z == chunk.z) || !chunk.inUse) {
-			if ((chunk.inUse && chunk.editCounter < task.chunk->editsCounter) || !chunk.inUse) {
+			if ((chunk.inUse && chunk.editCounter != task.chunk->editsCounter) || !chunk.inUse) {
 				if (chunk.size >= newChunk.size) {
 					fseek(chunkFile, chunk.filePosition, SEEK_SET);
 					size_t written = fwrite(newChunk.data, 1, newChunk.size, chunkFile);
@@ -282,16 +286,15 @@ bool SaveManager_SaveChunk(ChunkWorker_Queue* queue, ChunkWorker_Task task) {
 					savedChunks.data[i].x = task.chunk->x;
 					savedChunks.data[i].z = task.chunk->z;
 
-					free(newChunk.data);
-
 					if (written != newChunk.size) {
 						printf("!Warning! written memory does not match\n");
 					}
+
+					return true;
 				} else {
 					savedChunks.data[i].inUse = false;
 				}
 			}
-			return true;
 		}
 	}
 	fseek(chunkFile, writingHead, SEEK_SET);
@@ -311,9 +314,7 @@ bool SaveManager_SaveChunk(ChunkWorker_Queue* queue, ChunkWorker_Task task) {
 
 	writingHead += newChunk.size;
 
-	free(newChunk.data);
-
-	// printf("Not found appending to the end\n");
+	saveIndex();
 
 	return true;
 }
@@ -323,7 +324,7 @@ bool SaveManager_LoadChunk(ChunkWorker_Queue* queue, ChunkWorker_Task task) {
 	int i;
 	// printf("Loading chunk from file... ");
 	vec_foreach (&savedChunks, chunk, i) {
-		if (chunk.x == task.chunk->x && chunk.z == task.chunk->z) {
+		if (chunk.x == task.chunk->x && chunk.z == task.chunk->z && chunk.inUse) {
 			fseek(chunkFile, chunk.filePosition, SEEK_SET);
 			size_t bytesRead = fread(cacheMemForChunk, 1, chunk.size, chunkFile);
 
@@ -336,13 +337,14 @@ bool SaveManager_LoadChunk(ChunkWorker_Queue* queue, ChunkWorker_Task task) {
 			savedChunk.z = chunk.z;
 			savedChunk.size = chunk.size;
 			savedChunk.data = cacheMemForChunk;
+			task.chunk->editsCounter = chunk.editCounter;
 			deserializeChunk(savedChunk, task.chunk);
 			return true;
 		}
 	}
 	// printf("Not found, generating\n");
 	task.type = ChunkWorker_TaskDecorateChunk;
-	task.chunk->taskPending++;
+	task.chunk->tasksPending++;
 	vec_push(queue, task);
 	return true;
 }

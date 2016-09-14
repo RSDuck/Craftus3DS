@@ -130,7 +130,6 @@ static void drawWorld(Player* player) {
 
 	int verticesTotal = 0;
 
-	int yStart = (int)player->y / CHUNK_CLUSTER_HEIGHT;
 	// TODO: Multthreading für Chunk polygonisierung
 	int length = 1;
 	int pX = CACHE_SIZE / 2, pZ = CACHE_SIZE / 2;
@@ -143,7 +142,7 @@ static void drawWorld(Player* player) {
 			Chunk* c = cache->cache[pX][pZ];
 			float chunkX = c->x * CHUNK_WIDTH, chunkZ = c->z * CHUNK_DEPTH;
 			float distXZSqr = (chunkX - player->x) * (chunkX - player->x) + (chunkZ - player->z) * (chunkZ - player->z);
-			if (!(c->taskPending > 0) &&
+			if (!(c->tasksPending > 0) &&
 			    distXZSqr <= (3.f * 16.f * 3.f * 16.f) /*((M_PI + 1.f - fabsf(player->pitch)) * 16.f * (M_PI + 1.f - fabsf(player->pitch)) * 16.f)*/)
 				if (Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, 0.f, chunkX}, (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH})) {
 					bool passed = false;
@@ -152,8 +151,8 @@ static void drawWorld(Player* player) {
 					BufInfo_Init(&bufInfo);
 
 					for (int k = -1; k < 2; k += 2)
-						for (int j = (FastFloor(player->y) < 0.f) ? 0.f : FastFloor(player->y); (j < CHUNK_CLUSTER_COUNT && k == 1) || (j >= 0 && k == -1);
-						     j += k) {
+						for (int j = (FastFloor(player->y) < 0.f) ? 0 : FastFloor(player->y / CHUNK_CLUSTER_HEIGHT);
+						     (j < CHUNK_CLUSTER_COUNT && k == 1) || (j >= 0 && k == -1); j += k) {
 							float distYSqr = j * CHUNK_CLUSTER_HEIGHT - player->y;
 							if (c->data[j].vbo.memory && c->data[j].vertexCount && distYSqr <= (4.f * 16.f)) {
 								bool visible = Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, j * CHUNK_CLUSTER_HEIGHT, chunkX},

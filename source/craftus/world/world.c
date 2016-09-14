@@ -147,7 +147,7 @@ void World_ClearAfterLife(World* world) {
 	for (int i = 0; i < CHUNK_AFTERLIFE_SIZE; i++) {
 		if (world->afterLife[i] != NULL) {
 			if (world->afterLife[i]->referenced < 0) {  // -2 ist richtig
-				if (!world->afterLife[i]->taskPending) {
+				if (!world->afterLife[i]->tasksPending) {
 					World_FreeChunk(world, world->afterLife[i]);
 					world->afterLife[i] = NULL;
 					// printf("Freed chunk\n");
@@ -239,7 +239,7 @@ void World_SetBlock(World* world, int x, int y, int z, Block block) {
 		int chunkX = ChunkCache_LocalizeChunkX(cache, x), chunkZ = ChunkCache_LocalizeChunkZ(cache, z);
 		int lX = Chunk_GetLocalX(x), lZ = Chunk_GetLocalZ(z);
 
-		if (cache->cache[chunkX][chunkZ]->taskPending > 0) {
+		if (cache->cache[chunkX][chunkZ]->tasksPending > 0) {
 			world->errFlags |= World_ErrLockedBlockRequested;
 			RecursiveLock_Unlock(&worldLock);
 			return;
@@ -285,16 +285,19 @@ Block World_GetBlock(World* world, int x, int y, int z) {
 }
 
 void Chunk_RecalcHeightMap(Chunk* chunk) {
-	for (int x = 0; x < CHUNK_WIDTH; x++) {
-		for (int z = 0; z < CHUNK_DEPTH; z++) {
-			for (int y = CHUNK_HEIGHT - 1; y >= 0; y--) {
-				if (chunk->data[y / CHUNK_CLUSTER_HEIGHT].flags & ClusterFlags_Empty) y -= (CHUNK_CLUSTER_HEIGHT - 1);
-				if (Chunk_GetBlock(chunk, x, y, z) != Block_Air) {
-					chunk->heightmap[x][z] = y;
-					break;
+	if (chunk->heightMapEdit != chunk->editsCounter) {
+		for (int x = 0; x < CHUNK_WIDTH; x++) {
+			for (int z = 0; z < CHUNK_DEPTH; z++) {
+				for (int y = CHUNK_HEIGHT - 1; y >= 0; y--) {
+					if (chunk->data[y / CHUNK_CLUSTER_HEIGHT].flags & ClusterFlags_Empty) y -= (CHUNK_CLUSTER_HEIGHT - 1);
+					if (Chunk_GetBlock(chunk, x, y, z) != Block_Air) {
+						chunk->heightmap[x][z] = y;
+						break;
+					}
 				}
 			}
 		}
+		chunk->heightMapEdit = chunk->editsCounter;
 	}
 }
 

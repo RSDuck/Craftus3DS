@@ -58,7 +58,7 @@ void ChunkWorker_AddHandler(ChunkWorker* worker, ChunkWorker_TaskType type, Chun
 }
 
 void ChunkWorker_AddJob(ChunkWorker* worker, Chunk* chunk, ChunkWorker_TaskType type) {
-	chunk->taskPending++;
+	chunk->tasksPending++;
 
 	ChunkWorker_Task task;
 	task.type = type;
@@ -82,7 +82,7 @@ void ChunkWorker_Main(void* args) {
 					worker->handler[task.type].data[i].func(&worker->queue[operatingOn], task);
 				}
 				// vec_push(&unlockList, task.chunk);
-				task.chunk->taskPending--;
+				task.chunk->tasksPending--;
 
 				svcSleepThread(1000110);
 			}

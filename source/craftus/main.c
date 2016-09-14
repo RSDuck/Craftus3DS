@@ -94,8 +94,8 @@ int main(int argc, char* argv[]) {
 	// Hier könnte später ein Ladebildschirm hin("Welt wird geladen, Landschaft wird generiert")
 	while (cworker->queue[0].length > 0 || cworker->queue[1].length > 0) {
 		float current = cworker->queue[0].length + cworker->queue[1].length;
-		consoleClear();
-		printf("Generating world %d%%\n", 100 - (int)((current / max) * 100.f) + 1);
+		// consoleClear();
+		// printf("Generating world %d%%\n", 100 - (int)((current / max) * 100.f) + 1);
 		svcSleepThread(4800000);
 	}
 
