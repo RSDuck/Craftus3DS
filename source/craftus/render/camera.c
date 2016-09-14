@@ -3,12 +3,13 @@
 void Camera_Init(Camera* cam) {
 	Mtx_Identity(&cam->view);
 
-	cam->fov = 40.f * M_PI / 180.f;
+	cam->fov = C3D_AngleFromDegrees(60.f);
 	cam->near = 0.01f, cam->far = 100.f;
 
 	Mtx_PerspTilt(&cam->projection, cam->fov, 400.f / 240.f, cam->near, cam->far, false);
 }
 
+const float scaling = 1.3f;
 void Camera_Update(Camera* cam, Player* player, float iod) {
 	Mtx_PerspStereoTilt(&cam->projection, cam->fov, 400 / 240.f, cam->near, cam->far, iod, 2.f, false);
 
@@ -25,20 +26,12 @@ void Camera_Update(Camera* cam, Player* player, float iod) {
 	C3D_FVec rowZ = vp.r[2];
 	C3D_FVec rowW = vp.r[3];
 
-	cam->frustumPlanes[Frustum_Near] = FVec4_Subtract(rowW, rowZ);
-	cam->frustumPlanes[Frustum_Right] = FVec4_Add(rowW, rowX);
-	cam->frustumPlanes[Frustum_Left] = FVec4_Subtract(rowW, rowX);
-	cam->frustumPlanes[Frustum_Top] = FVec4_Add(rowW, rowY);
-	cam->frustumPlanes[Frustum_Bottom] = FVec4_Subtract(rowW, rowY);
-	cam->frustumPlanes[Frustum_Far] = FVec4_Add(rowW, rowZ);
-
-	for (int i = 0; i < Frustum_Count; i++) {
-		float length = FVec3_Magnitude(cam->frustumPlanes[i]);
-		cam->frustumPlanes[i].x /= length;
-		cam->frustumPlanes[i].y /= length;
-		cam->frustumPlanes[i].z /= length;
-		cam->frustumPlanes[i].w /= length;
-	}
+	cam->frustumPlanes[Frustum_Near] = FVec4_Normalize(FVec4_Subtract(rowW, rowZ));
+	cam->frustumPlanes[Frustum_Right] = FVec4_Normalize(FVec4_Add(rowW, rowX));
+	cam->frustumPlanes[Frustum_Left] = FVec4_Normalize(FVec4_Subtract(rowW, rowX));
+	cam->frustumPlanes[Frustum_Top] = FVec4_Normalize(FVec4_Add(rowW, rowY));
+	cam->frustumPlanes[Frustum_Bottom] = FVec4_Normalize(FVec4_Subtract(rowW, rowY));
+	cam->frustumPlanes[Frustum_Far] = FVec4_Normalize(FVec4_Add(rowW, rowZ));
 }
 
 bool Camera_IsPointVisible(Camera* cam, C3D_FVec point) {

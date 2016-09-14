@@ -35,7 +35,28 @@ World* World_New() {
 	return world;
 }
 
+void World_PrepareFree(World* world) {
+	while (true) {
+		int notEmpty = 0;
+		for (int i = 0; i < CHUNK_AFTERLIFE_SIZE; i++) {
+			notEmpty += (int)world->afterLife[i];
+		}
+		if (!notEmpty) {
+			break;
+		}
+		World_ClearAfterLife(world);
+	}
+
+	for (int i = 0; i < CACHE_SIZE; i++) {
+		for (int j = 0; j < CACHE_SIZE; j++) {
+			Chunk* chunk = world->cache[0]->cache[i][j];
+			World_ReleaseChunk(world, chunk->x, chunk->z);
+		}
+	}
+}
+
 void World_Free(World* world) {
+	RecursiveLock_Lock(&worldLock);
 	vec_deinit(&world->loadedChunks);
 	poolFreePool(&world->chunkpool);
 
@@ -50,8 +71,8 @@ void World_Profile(World* world) {
 	       world->cache[0]->cache[0][0]->x, world->cache[0]->cache[0][0]->z);*/
 	int afterLifeUsage = 0;
 	for (int i = 0; i < CHUNK_AFTERLIFE_SIZE; i++) afterLifeUsage += !!world->afterLife[i];
-	printf("GC Cache Capacity: %d | Length %d | Linmem %f | After life usage %d\n", world->loadedChunks.capacity,
-	       world->loadedChunks.length, (float)linearSpaceFree() / (1024.f * 1024.f), afterLifeUsage);
+	printf("GC Cache Capacity: %d | Length %d | Linmem %f | After life usage %d\n", world->loadedChunks.capacity, world->loadedChunks.length,
+	       (float)linearSpaceFree() / (1024.f * 1024.f), afterLifeUsage);
 }
 
 void World_EnterAfterLive() {}
@@ -88,7 +109,7 @@ Chunk* World_GetChunk(World* world, int x, int z) {
 
 	vec_push(&world->loadedChunks, chunk);
 
-	ChunkWorker_AddJob(cworker, chunk, ChunkWorker_TaskDecorateChunk);
+	ChunkWorker_AddJob(cworker, chunk, ChunkWorker_TaskOpenChunk);
 
 	return chunk;
 }
@@ -105,10 +126,12 @@ void World_ReleaseChunk(World* world, int x, int z) {
 		if (chunk->x == x && chunk->z == z)
 			if (--chunk->referenced == 0) {
 				vec_splice(&world->loadedChunks, i, 1);
+
 				for (int j = 0; j < CHUNK_AFTERLIFE_SIZE; j++) {
 					if (world->afterLife[j] == NULL) {
 						world->afterLife[j] = chunk;
-						// printf("Put chunk into afterlife\n");
+
+						ChunkWorker_AddJob(cworker, chunk, ChunkWorker_TaskSaveChunk);
 						break;
 					}
 					if (j == CHUNK_AFTERLIFE_SIZE - 1) {
@@ -124,7 +147,7 @@ void World_ClearAfterLife(World* world) {
 	for (int i = 0; i < CHUNK_AFTERLIFE_SIZE; i++) {
 		if (world->afterLife[i] != NULL) {
 			if (world->afterLife[i]->referenced < 0) {  // -2 ist richtig
-				if (!(world->afterLife[i]->flags & ClusterFlags_InProcess)) {
+				if (!world->afterLife[i]->taskPending) {
 					World_FreeChunk(world, world->afterLife[i]);
 					world->afterLife[i] = NULL;
 					// printf("Freed chunk\n");
@@ -154,28 +177,24 @@ void World_Tick(World* world) {
 				if (delta > 0)
 					for (int i = 0; i < CACHE_SIZE; i++) {
 						if (i == 0)
-							for (int j = 0; j < CACHE_SIZE; j++)
-								World_ReleaseChunk(world, CACHE_AXIS->x, CACHE_AXIS->z);
+							for (int j = 0; j < CACHE_SIZE; j++) World_ReleaseChunk(world, CACHE_AXIS->x, CACHE_AXIS->z);
 						if (i + delta >= CACHE_SIZE)
 							for (int j = 0; j < CACHE_SIZE; j++)
-								CACHE_AXIS = World_GetChunk(world, CACHE_AXIS->x + (!axis ? delta : 0),
-											    CACHE_AXIS->z + (!axis ? 0 : delta));
+								CACHE_AXIS = World_GetChunk(world, CACHE_AXIS->x + (!axis ? delta : 0), CACHE_AXIS->z + (!axis ? 0 : delta));
 						else
-							for (int j = 0; j < CACHE_SIZE; j++)
+							for (int j = 0; j < CACHE_SIZE; j++) {
 								CACHE_AXIS = cache->cache[!axis ? (i + delta) : j][!axis ? j : (i + delta)];
+							}
 					}
 				else
 					for (int i = CACHE_SIZE - 1; i >= 0; i--) {
 						if (i == CACHE_SIZE - 1)
-							for (int j = 0; j < CACHE_SIZE; j++)
-								World_ReleaseChunk(world, CACHE_AXIS->x, CACHE_AXIS->z);
+							for (int j = 0; j < CACHE_SIZE; j++) World_ReleaseChunk(world, CACHE_AXIS->x, CACHE_AXIS->z);
 						if (i + delta < 0)
 							for (int j = 0; j < CACHE_SIZE; j++)
-								CACHE_AXIS = World_GetChunk(world, CACHE_AXIS->x + (!axis ? delta : 0),
-											    CACHE_AXIS->z + (!axis ? 0 : delta));
+								CACHE_AXIS = World_GetChunk(world, CACHE_AXIS->x + (!axis ? delta : 0), CACHE_AXIS->z + (!axis ? 0 : delta));
 						else
-							for (int j = 0; j < CACHE_SIZE; j++)
-								CACHE_AXIS = cache->cache[!axis ? (i + delta) : j][!axis ? j : (i + delta)];
+							for (int j = 0; j < CACHE_SIZE; j++) CACHE_AXIS = cache->cache[!axis ? (i + delta) : j][!axis ? j : (i + delta)];
 					}
 			}
 
@@ -202,8 +221,7 @@ void World_Tick(World* world) {
 
 					// printf("Ticking %d %d %d", rX, rY, rZ);
 
-					Blocks_RandomTick((void*)world, cache->where.startX * CHUNK_WIDTH + x * CHUNK_WIDTH + rX,
-							  y * CHUNK_CLUSTER_HEIGHT + rY,
+					Blocks_RandomTick((void*)world, cache->where.startX * CHUNK_WIDTH + x * CHUNK_WIDTH + rX, y * CHUNK_CLUSTER_HEIGHT + rY,
 							  cache->where.startY * CHUNK_DEPTH + z * CHUNK_DEPTH + rZ);
 				}
 			}
@@ -221,7 +239,7 @@ void World_SetBlock(World* world, int x, int y, int z, Block block) {
 		int chunkX = ChunkCache_LocalizeChunkX(cache, x), chunkZ = ChunkCache_LocalizeChunkZ(cache, z);
 		int lX = Chunk_GetLocalX(x), lZ = Chunk_GetLocalZ(z);
 
-		if (cache->cache[chunkX][chunkZ]->flags & ClusterFlags_InProcess) {
+		if (cache->cache[chunkX][chunkZ]->taskPending > 0) {
 			world->errFlags |= World_ErrLockedBlockRequested;
 			RecursiveLock_Unlock(&worldLock);
 			return;
@@ -237,15 +255,12 @@ void World_SetBlock(World* world, int x, int y, int z, Block block) {
 		if (block != Block_Air) cache->cache[chunkX][chunkZ]->data[clusterY].flags &= ~ClusterFlags_Empty;
 
 		if (lX == 0 && chunkX - 1 >= 0) Chunk_MarkCluster(cache->cache[chunkX - 1][chunkZ], clusterY, ClusterFlags_VBODirty);
-		if (lX == CHUNK_WIDTH - 1 && chunkX + 1 < CACHE_SIZE)
-			Chunk_MarkCluster(cache->cache[chunkX + 1][chunkZ], clusterY, ClusterFlags_VBODirty);
+		if (lX == CHUNK_WIDTH - 1 && chunkX + 1 < CACHE_SIZE) Chunk_MarkCluster(cache->cache[chunkX + 1][chunkZ], clusterY, ClusterFlags_VBODirty);
 		if (lZ == 0 && chunkZ - 1 >= 0) Chunk_MarkCluster(cache->cache[chunkX][chunkZ - 1], clusterY, ClusterFlags_VBODirty);
-		if (lZ == CHUNK_DEPTH - 1 && chunkZ + 1 < CACHE_SIZE)
-			Chunk_MarkCluster(cache->cache[chunkX][chunkZ + 1], clusterY, ClusterFlags_VBODirty);
+		if (lZ == CHUNK_DEPTH - 1 && chunkZ + 1 < CACHE_SIZE) Chunk_MarkCluster(cache->cache[chunkX][chunkZ + 1], clusterY, ClusterFlags_VBODirty);
 		int lY = y - (y / CHUNK_CLUSTER_HEIGHT * CHUNK_CLUSTER_HEIGHT);
 		if (lY == 0 && clusterY - 1 >= 0) Chunk_MarkCluster(cache->cache[chunkX][chunkZ], clusterY - 1, ClusterFlags_VBODirty);
-		if (lY == CHUNK_CLUSTER_HEIGHT - 1 && clusterY < CHUNK_CLUSTER_HEIGHT)
-			Chunk_MarkCluster(cache->cache[chunkX][chunkZ], clusterY + 1, ClusterFlags_VBODirty);
+		if (lY == CHUNK_CLUSTER_HEIGHT - 1 && clusterY < CHUNK_CLUSTER_HEIGHT) Chunk_MarkCluster(cache->cache[chunkX][chunkZ], clusterY + 1, ClusterFlags_VBODirty);
 
 		RecursiveLock_Unlock(&worldLock);
 		return;
@@ -296,7 +311,6 @@ Chunk* World_FastChunkAccess(World* world, int x, int z) {
 }
 
 int World_GetHeight(World* world, int x, int z) {
-	RecursiveLock_Lock(&worldLock);
 	ChunkCache* cache = world->cache[0];
 	world->errFlags = 0;
 	if (Box_IsPointInside(cache->where, BlockToChunkCoordZ(x), BlockToChunkCoordZ(z))) {
@@ -305,6 +319,5 @@ int World_GetHeight(World* world, int x, int z) {
 		return cache->cache[chunkX][chunkZ]->heightmap[Chunk_GetLocalX(x)][Chunk_GetLocalZ(z)];
 	}
 	world->errFlags |= World_ErrUnloadedBlockRequested;
-	RecursiveLock_Unlock(&worldLock);
 	return 0;
 }

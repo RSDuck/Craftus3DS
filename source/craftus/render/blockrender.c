@@ -120,11 +120,15 @@ typedef struct {
 	u8 brightness;
 } Side;
 
+typedef struct {
+	u8 x, y, z;
+	u8 verticeMask;
+} Block_Vertices;
+
 static inline Block fastBlockFetch(World* world, Chunk* chunk, Cluster* cluster, int x, int y, int z) {
 	world->errFlags = 0;
 	return (x < 0 || y < 0 || z < 0 || x >= CHUNK_WIDTH || y >= CHUNK_CLUSTER_HEIGHT || z >= CHUNK_DEPTH)
-		   ? World_GetBlock(world, (chunk->x * CHUNK_WIDTH) + x, (cluster->y * CHUNK_CLUSTER_HEIGHT) + y,
-				    (chunk->z * CHUNK_DEPTH) + z)
+		   ? World_GetBlock(world, (chunk->x * CHUNK_WIDTH) + x, (cluster->y * CHUNK_CLUSTER_HEIGHT) + y, (chunk->z * CHUNK_DEPTH) + z)
 		   : cluster->blocks[x][y][z];
 }
 
@@ -138,13 +142,12 @@ static inline u8 fastHeightMapFetch(World* world, Chunk* chunk, int x, int z) {
 enum AOSides { AOSide_Top = BIT(4 + 0), AOSide_Bottom = BIT(4 + 1), AOSide_Left = BIT(4 + 2), AOSide_Right = BIT(4 + 3) };
 
 const int aoTable[Directions_Count][4][3] = {
-    {{0, 1, 0}, {0, -1, 0}, {-1, 0, 0}, {1, 0, 0}}, {{0, 1, 0}, {0, -1, 0}, {-1, 0, 0}, {1, 0, 0}},
-    {{0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}}, {{0, 1, 0}, {0, -1, 0}, {0, 0, -1}, {0, 0, 1}},
-    {{0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}}, {{0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}},
+    {{0, 1, 0}, {0, -1, 0}, {-1, 0, 0}, {1, 0, 0}}, {{0, 1, 0}, {0, -1, 0}, {-1, 0, 0}, {1, 0, 0}}, {{0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}},
+    {{0, 1, 0}, {0, -1, 0}, {0, 0, -1}, {0, 0, 1}}, {{0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}}, {{0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}},
 };
 
 bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk, bool progressive) {
-	if (chunk->flags & ClusterFlags_InProcess) return false;
+	if (chunk->taskPending > 0) return false;
 
 	int clean = 0;
 
@@ -166,26 +169,21 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk, bool progressive) {
 							for (int j = 0; j < Directions_Count; j++) {
 								const int* pos = &DirectionToPosition[j];
 
-								if (fastBlockFetch(world, chunk, cluster, x + pos[0], y + pos[1],
-										   z + pos[2]) == Block_Air) {
+								if (fastBlockFetch(world, chunk, cluster, x + pos[0], y + pos[1], z + pos[2]) == Block_Air) {
 									if (!(world->errFlags & World_ErrUnloadedBlockRequested)) {
-										sides[sideCurrent] =
-										    (Side){x, y, z, j, cluster->blocks[x][y][z],
-											   (i * CHUNK_CLUSTER_HEIGHT) + y <
-											       fastHeightMapFetch(world, chunk, x + pos[0],
-														  z + pos[2])};
+										sides[sideCurrent] = (Side){
+										    x,
+										    y,
+										    z,
+										    j,
+										    cluster->blocks[x][y][z],
+										    (i * CHUNK_CLUSTER_HEIGHT) + y < fastHeightMapFetch(world, chunk, x + pos[0], z + pos[2])};
 
 										for (int k = 0; k < 4; k++) {
 											const int* aoOffset = aoTable[j][k];
-											if (fastBlockFetch(world, chunk, cluster,
-													   x + pos[0] + aoOffset[0],
-													   y + pos[1] + aoOffset[1],
-													   z + pos[2] + aoOffset[2]) !=
-											    Block_Air) {
+											if (fastBlockFetch(world, chunk, cluster, x + pos[0] + aoOffset[0],
+													   y + pos[1] + aoOffset[1], z + pos[2] + aoOffset[2]) != Block_Air) {
 												sides[sideCurrent].sideAO |= 1 << (4 + k);
-												// printf("AO Side %d, %d,
-												// %d\n", x,
-												// y, z);
 											}
 										}
 										sideCurrent++;
@@ -204,19 +202,17 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk, bool progressive) {
 				continue;
 			}
 
-			if (cluster->vbo == NULL || cluster->vboSize == 0) {
+			if (cluster->vbo.memory == NULL || cluster->vbo.size == 0) {
 				cluster->vbo = VBO_Alloc(vboBytestNeeded + (sizeof(world_vertex) * 24));
-				cluster->vboSize = vboBytestNeeded + (sizeof(world_vertex) * 24);
-			} else if (cluster->vboSize < vboBytestNeeded) {
+			} else if (cluster->vbo.size < vboBytestNeeded) {
 				VBO_Free(cluster->vbo);
 				cluster->vbo = VBO_Alloc(vboBytestNeeded + (sizeof(world_vertex) * 24));
-				cluster->vboSize = vboBytestNeeded + (sizeof(world_vertex) * 24);
 			}
-			if (!cluster->vbo) printf("VBO allocation failed\n");
+			if (!cluster->vbo.memory) printf("VBO allocation failed\n");
 
 			int vertexCount = 0;
 
-			world_vertex* ptr = (world_vertex*)cluster->vbo;
+			world_vertex* ptr = (world_vertex*)cluster->vbo.memory;
 
 			const int oneDivIconsPerRow = 256 / 8;
 			const int halfTexel = 256 / 128;

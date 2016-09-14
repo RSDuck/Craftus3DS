@@ -11,7 +11,7 @@ Craftus in a Minecraft clone for Nintendo 3DS(and not a continuation of 3DSCraft
 * Ambient Occlusion(these shadows in the edges between the cubes)
 
 ## Upcoming features
-* A hand and a crosshair
+* A hand/the current item
 * Trees, water, stuff that makes landscapes interesting
 * Saving and opening worlds
 * (Maybe) support for Minecraft Ressourcepacks or atleast a custom format and a converter for PC

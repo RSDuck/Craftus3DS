@@ -20,7 +20,7 @@
 #define CHUNK_CLUSTER_HEIGHT 16
 #define CHUNK_CLUSTER_COUNT CHUNK_HEIGHT / CHUNK_CLUSTER_HEIGHT
 
-enum { ClusterFlags_VBODirty = BIT(0), ClusterFlags_InProcess = BIT(1), ClusterFlags_Empty = BIT(2) };
+enum { ClusterFlags_VBODirty = BIT(0), ClusterFlags_Empty = BIT(1) };
 
 typedef struct {
 	int y;
@@ -42,6 +42,9 @@ typedef struct {
 	int vertexCount;
 
 	int flags;
+
+	u32 editsCounter;
+	u32 taskPending;
 
 	Cluster data[CHUNK_CLUSTER_COUNT];
 } Chunk;
@@ -68,11 +71,10 @@ inline void Chunk_SetBlock(Chunk* c, int x, int y, int z, Block block) {
 	c->data[y / CHUNK_CLUSTER_HEIGHT].blocks[x][y - (y / CHUNK_CLUSTER_HEIGHT * CHUNK_CLUSTER_HEIGHT)][z] = block;
 	c->data[y / CHUNK_CLUSTER_HEIGHT].flags |= ClusterFlags_VBODirty;
 	c->flags |= ClusterFlags_VBODirty;
+	c->editsCounter++;
 }
 
-inline Block Chunk_GetBlock(Chunk* c, int x, int y, int z) {
-	return c->data[y / CHUNK_CLUSTER_HEIGHT].blocks[x][y - (y / CHUNK_CLUSTER_HEIGHT * CHUNK_CLUSTER_HEIGHT)][z];
-}
+inline Block Chunk_GetBlock(Chunk* c, int x, int y, int z) { return c->data[y / CHUNK_CLUSTER_HEIGHT].blocks[x][y - (y / CHUNK_CLUSTER_HEIGHT * CHUNK_CLUSTER_HEIGHT)][z]; }
 
 #define CACHE_SIZE 9
 
@@ -99,7 +101,7 @@ typedef struct {
 	int type;
 } World_GenConfig;
 
-#define CHUNK_AFTERLIFE_SIZE (CACHE_SIZE * 4)
+#define CHUNK_AFTERLIFE_SIZE (CACHE_SIZE * CACHE_SIZE)
 typedef struct {
 	char name[12];
 	World_GenConfig genConfig;
@@ -117,6 +119,9 @@ typedef struct {
 
 World* World_New();
 void World_Free(World* world);
+void World_PrepareFree(World* world);
+
+void World_ReleaseChunk(World* world, int x, int z);
 
 void World_Tick(World* world);
 
@@ -133,5 +138,7 @@ void World_FreeChunk(World* world, Chunk* chunk);
 Chunk* World_FastChunkAccess(World* world, int x, int z);
 
 int World_GetHeight(World* world, int x, int z);
+
+void World_ClearAfterLife(World* world);
 
 #endif  // !WORLD_H_INCLUDED

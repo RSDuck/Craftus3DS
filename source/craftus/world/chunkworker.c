@@ -29,7 +29,9 @@ volatile ChunkWorker* workerToStop = NULL;  // Nicht Thread sicher aber egal
 void ChunkWorker_Stop(ChunkWorker* worker) {
 	// Thread zum Ende bringen
 	workerToStop = worker;
+	printf("Waiting for thead...");
 	threadJoin(worker->thread, U64_MAX);
+	printf("Joined thread\n");
 	threadFree(worker->thread);
 
 	vec_deinit(&worker->queue[0]);
@@ -56,7 +58,7 @@ void ChunkWorker_AddHandler(ChunkWorker* worker, ChunkWorker_TaskType type, Chun
 }
 
 void ChunkWorker_AddJob(ChunkWorker* worker, Chunk* chunk, ChunkWorker_TaskType type) {
-	chunk->flags |= ClusterFlags_InProcess;
+	chunk->taskPending++;
 
 	ChunkWorker_Task task;
 	task.type = type;
@@ -68,7 +70,7 @@ void ChunkWorker_AddJob(ChunkWorker* worker, Chunk* chunk, ChunkWorker_TaskType 
 void ChunkWorker_Main(void* args) {
 	// printf("Hello from a worker thread\n");
 	ChunkWorker* worker = (ChunkWorker*)args;
-	while (worker != workerToStop) {
+	while (worker != workerToStop || worker->queue[0].length || worker->queue[1].length) {
 		if (!LightLock_TryLock(&worker->lock)) {
 			int operatingOn = worker->currentQueue;
 			worker->currentQueue ^= 1;
@@ -80,7 +82,7 @@ void ChunkWorker_Main(void* args) {
 					worker->handler[task.type].data[i].func(&worker->queue[operatingOn], task);
 				}
 				// vec_push(&unlockList, task.chunk);
-				task.chunk->flags &= ~ClusterFlags_InProcess;
+				task.chunk->taskPending--;
 
 				svcSleepThread(1000110);
 			}

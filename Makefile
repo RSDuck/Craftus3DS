@@ -29,7 +29,7 @@ include $(DEVKITARM)/3ds_rules
 #---------------------------------------------------------------------------------
 TARGET		:=	$(notdir $(CURDIR))
 BUILD		:=	build
-SOURCES		:=	source source/craftus source/craftus/entity source/craftus/world source/craftus/misc source/craftus/render deps/vec deps/pool deps/lodepng deps/SimplexNoise deps/json-parser
+SOURCES		:=	source source/craftus source/craftus/entity source/craftus/world source/craftus/misc source/craftus/render deps/vec deps/pool deps/lodepng deps/SimplexNoise deps/json-parser deps/mpack deps/pithy
 DATA		:=	data
 INCLUDES	:=	include deps
 ROMFS		:=	romfs
@@ -39,7 +39,7 @@ ROMFS		:=	romfs
 #---------------------------------------------------------------------------------
 ARCH	:=	-march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
 
-CFLAGS	:=	-g -Wall -O2 -mword-relocations \
+CFLAGS	:=	-g -Wall -O3 -mword-relocations \
 			-fomit-frame-pointer -ffunction-sections \
 			-ffast-math \
 			$(ARCH)

@@ -37,7 +37,7 @@ static C3D_RenderTarget *target, *rightTarget;
 void Render_Init() {
 	gfxSet3D(true);
 
-	C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
+	C3D_Init(C3D_DEFAULT_CMDBUF_SIZE * 2);
 
 	target = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24);
 	C3D_RenderTargetSetClear(target, C3D_CLEAR_ALL, 0x68B0D8FF, 0);
@@ -128,8 +128,6 @@ static void drawWorld(Player* player) {
 
 	ChunkCache* cache = player->cache;
 
-	void* test = NULL;
-
 	int verticesTotal = 0;
 
 	int yStart = (int)player->y / CHUNK_CLUSTER_HEIGHT;
@@ -145,27 +143,23 @@ static void drawWorld(Player* player) {
 			Chunk* c = cache->cache[pX][pZ];
 			float chunkX = c->x * CHUNK_WIDTH, chunkZ = c->z * CHUNK_DEPTH;
 			float distXZSqr = (chunkX - player->x) * (chunkX - player->x) + (chunkZ - player->z) * (chunkZ - player->z);
-			if (!(c->flags & ClusterFlags_InProcess) &&
-			    distXZSqr <= ((M_PI + 1.f - fabsf(player->pitch)) * 16.f * (M_PI + 1.f - fabsf(player->pitch)) * 16.f))
-				if (Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, 0.f, chunkX},
-							 (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH})) {
+			if (!(c->taskPending > 0) &&
+			    distXZSqr <= (3.f * 16.f * 3.f * 16.f) /*((M_PI + 1.f - fabsf(player->pitch)) * 16.f * (M_PI + 1.f - fabsf(player->pitch)) * 16.f)*/)
+				if (Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, 0.f, chunkX}, (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH})) {
 					bool passed = false;
 
-					for (int k = -1; k < 2; k += 2)
-						for (int j = (FastFloor(player->y) < 0.f) ? 0.f : FastFloor(player->y);
-						     (j < CHUNK_CLUSTER_COUNT && k == 1) || (j >= 0 && k == -1); j += k) {
-							float distYSqr = j * CHUNK_CLUSTER_HEIGHT - player->y;
-							if (c->data[j].vbo.memory && c->data[j].vertexCount &&
-							    distYSqr <= (fabsf(player->pitch) + 1.f) * 16.f) {
-								bool visible = Camera_IsAABBVisible(
-								    &camera, (C3D_FVec){1.f, chunkZ, j * CHUNK_CLUSTER_HEIGHT, chunkX},
-								    (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_CLUSTER_HEIGHT, CHUNK_WIDTH});
-								if (visible) {
-									C3D_BufInfo bufInfo;
-									BufInfo_Init(&bufInfo);
+					C3D_BufInfo bufInfo;
+					BufInfo_Init(&bufInfo);
 
-									BufInfo_Add(&bufInfo, c->data[j].vbo.memory, sizeof(world_vertex),
-										    2, 0x10);
+					for (int k = -1; k < 2; k += 2)
+						for (int j = (FastFloor(player->y) < 0.f) ? 0.f : FastFloor(player->y); (j < CHUNK_CLUSTER_COUNT && k == 1) || (j >= 0 && k == -1);
+						     j += k) {
+							float distYSqr = j * CHUNK_CLUSTER_HEIGHT - player->y;
+							if (c->data[j].vbo.memory && c->data[j].vertexCount && distYSqr <= (4.f * 16.f)) {
+								bool visible = Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, j * CHUNK_CLUSTER_HEIGHT, chunkX},
+												    (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_CLUSTER_HEIGHT, CHUNK_WIDTH});
+								if (visible) {
+									BufInfo_Add(&bufInfo, c->data[j].vbo.memory, sizeof(world_vertex), 2, 0x10);
 
 									C3D_SetBufInfo(&bufInfo);
 
@@ -277,8 +271,7 @@ static void drawCursor(Player* player) {
 
 		C3D_DrawArrays(GPU_TRIANGLES, 0, 36);
 
-		C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_SRC_ALPHA,
-			       GPU_ONE_MINUS_SRC_ALPHA);
+		C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA);
 
 		env = C3D_GetTexEnv(0);
 		C3D_TexEnvSrc(env, C3D_Both, GPU_TEXTURE0, GPU_PRIMARY_COLOR, 0);

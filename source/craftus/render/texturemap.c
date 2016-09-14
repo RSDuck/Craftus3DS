@@ -87,7 +87,7 @@ void Texture_MapInit(Texture_Map* map, char* files) {
 	char modableFiles[512];
 	strcpy(modableFiles, files);
 
-	printf("TextureMapInit %s\n", files);
+	// printf("TextureMapInit %s\n", files);
 
 	const int mipmapLevels = 2;
 	const int maxSize = 4 * TEXTURE_MAPSIZE * TEXTURE_MAPSIZE;
@@ -111,12 +111,12 @@ void Texture_MapInit(Texture_Map* map, char* files) {
 			icon->u = 2 * locX;
 			icon->v = 2 * locY;
 
-			printf("Stiched texture %s(hash: %u) at %d, %d\n", filename, icon->textureHash, locX, locY);
+			// printf("Stiched texture %s(hash: %u) at %d, %d\n", filename, icon->textureHash, locX, locY);
 
 			locX += TEXTURE_TILESIZE;
 			if (locX == TEXTURE_MAPSIZE) locY += TEXTURE_TILESIZE;
 		} else {
-			printf("Image size(%d, %d) doesn't match or ptr null\n'", w, h);
+			printf("Image size(%d, %d) doesn't match or ptr null(internal error)\n'", w, h);
 		}
 		free(image);
 		filename = strtok(NULL, ";");

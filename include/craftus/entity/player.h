@@ -6,7 +6,7 @@
 #include <3ds/types.h>
 
 #define PLAYER_HEIGHT 1.8f
-#define PLAYER_EYE_HEIGHT 1.72f
+#define PLAYER_EYE_HEIGHT 1.6f
 
 #define PLAYER_SEIGHT_INF -42
 

@@ -37,5 +37,5 @@ static int sort_by_size(const void* a, const void* b) { return ((VBO_Block*)b)->
 void VBO_Free(VBO_Block block) {
 	vec_push(&freedBlocks, block);
 	vec_sort(&freedBlocks, &sort_by_size);
-	linearFree(block.memory);
+	// linearFree(block.memory);
 }

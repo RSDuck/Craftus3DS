@@ -1,6 +1,7 @@
 #include "craftus/entity/player.h"
 #include "craftus/render/render.h"
 #include "craftus/world/chunkworker.h"
+#include "craftus/world/savemanager.h"
 #include "craftus/world/world.h"
 #include "craftus/world/worldgen.h"
 
@@ -55,7 +56,7 @@ int main(int argc, char* argv[]) {
 
 	consoleSelect(&consoleEvent);
 
-	printf("Craftus3D running!");
+	printf("Craftus3D running!\n");
 
 	osSetSpeedupEnable(true);
 	if (R_FAILED(APT_SetAppCpuTimeLimit(30))) {
@@ -69,6 +70,8 @@ int main(int argc, char* argv[]) {
 	Render_Init();
 
 	World* world = World_New();
+
+	SaveManager_Init(world);
 	// world->genConfig.type = World_GenSuperFlat;
 	WorldGen_Setup(world);
 
@@ -79,6 +82,9 @@ int main(int argc, char* argv[]) {
 	} else {
 		ChunkWorker_AddHandler(cworker, ChunkWorker_TaskDecorateChunk, &generateFlatWorld_test, 0);
 	}
+
+	ChunkWorker_AddHandler(cworker, ChunkWorker_TaskOpenChunk, &SaveManager_LoadChunk, 0);
+	ChunkWorker_AddHandler(cworker, ChunkWorker_TaskSaveChunk, &SaveManager_SaveChunk, 0);
 
 	Player* player = Player_New();
 	Player_Spawn(player, world);
@@ -100,14 +106,17 @@ int main(int argc, char* argv[]) {
 					world->cache[0]->cache[x][z]->flags &= ~ClusterFlags_VBODirty;
 				}
 		}
-		printf("Row %d finished\n", x);
+		printf("Polygonizing chunk row %d\n", x);
 	}
+
+	player->y = (float)World_GetHeight(world, 0, 0) + 0.1f;
 
 	u64 time = osGetTime(), tickClock = 0, deltaTime = 0, fpsClock = 0;
 	u32 fps = 0, fpsCounter = 0;
 
 	while (aptMainLoop()) {
 		consoleSelect(&consoleEvent);
+
 		if (tickClock >= 50) {
 			World_Tick(world);
 
@@ -125,8 +134,7 @@ int main(int argc, char* argv[]) {
 		consoleSelect(&consoleStatus);
 		consoleClear();
 
-		printf("Player: %f, %f, %f Tasks: %d\n", player->x, player->y, player->z,
-		       cworker->queue[0].length + cworker->queue[1].length);
+		printf("Player: %f, %f, %f Tasks: %d\n", player->x, player->y, player->z, cworker->queue[0].length + cworker->queue[1].length);
 		printf("FPS: %d", fps);
 
 		u32 input = hidKeysHeld();
@@ -153,10 +161,14 @@ int main(int argc, char* argv[]) {
 		time = timeNow;
 	}
 
+	World_PrepareFree(world);
+
 	ChunkWorker_Stop(cworker);
 
-	Player_Free(player);
 	World_Free(world);
+	Player_Free(player);
+
+	SaveManager_Free();
 
 	Render_Exit();
 
