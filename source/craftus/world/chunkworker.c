@@ -83,7 +83,10 @@ void ChunkWorker_Main(void* args) {
 				}
 				// vec_push(&unlockList, task.chunk);
 				task.chunk->tasksPending--;
-
+				if (task.type == ChunkWorker_TaskBaseGeneration || task.type == ChunkWorker_TaskDecorateChunk) {
+					task.chunk->worldGenProgress++;
+					printf("Generation\n");
+				}
 				svcSleepThread(1000110);
 			}
 

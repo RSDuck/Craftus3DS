@@ -212,6 +212,20 @@ void World_Tick(World* world) {
 	for (int x = 0; x < CACHE_SIZE; x++) {
 		for (int z = 0; z < CACHE_SIZE; z++) {
 			Chunk* chunk = cache->cache[x][z];
+			if (chunk->worldGenProgress == WorldGenProgress_Empty && !chunk->tasksPending) {
+				ChunkWorker_AddJob(cworker, chunk, ChunkWorker_TaskBaseGeneration);
+			}
+
+			if (x > 0 && z > 0 && x < CACHE_SIZE - 1 && z < CACHE_SIZE - 1 && chunk->worldGenProgress == WorldGenProgress_Terrain) {
+				bool stillTasksToDo = false;
+				for (int xO = -1; xO < 2; xO++)
+					for (int zO = -1; zO < 2; zO++) stillTasksToDo |= cache->cache[x + xO][z + zO]->tasksPending;
+
+				if (!stillTasksToDo) {
+					ChunkWorker_AddJob(cworker, chunk, ChunkWorker_TaskDecorateChunk);
+				}
+			}
+
 			for (int y = 0; y < CHUNK_CLUSTER_COUNT; y++) {
 				Cluster* cluster = &chunk->data[y];
 				for (int i = 0; i < 3; i++) {

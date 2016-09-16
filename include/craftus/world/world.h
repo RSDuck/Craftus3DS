@@ -22,6 +22,8 @@
 
 enum { ClusterFlags_VBODirty = BIT(0), ClusterFlags_Empty = BIT(1) };
 
+enum { WorldGenProgress_NotLoaded = 0, WorldGenProgress_Empty, WorldGenProgress_Terrain, WorldGenProgress_Decoration };
+
 typedef struct {
 	int y;
 
@@ -46,6 +48,8 @@ typedef struct {
 
 	u32 editsCounter;
 	u32 tasksPending;
+
+	u32 worldGenProgress;
 
 	Cluster data[CHUNK_CLUSTER_COUNT];
 } Chunk;

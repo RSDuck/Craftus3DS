@@ -11,7 +11,7 @@
 
 #include "vec/vec.h"
 
-#include "pithy/pithy.h"
+#include "miniz/miniz.c"
 
 typedef struct {
 	int x, z;
@@ -135,7 +135,7 @@ static savedChunk serializeChunk(Chunk* chunk, bool testRun) {
 	else
 		mpack_writer_init(&writer, cacheMemForChunk, serializedSizeInMem);
 
-	mpack_start_map(&writer, 2);
+	mpack_start_map(&writer, 3);
 
 	mpack_write_cstr(&writer, "cluster");
 	mpack_start_array(&writer, CHUNK_CLUSTER_COUNT);
@@ -144,13 +144,16 @@ static savedChunk serializeChunk(Chunk* chunk, bool testRun) {
 		mpack_write_cstr(&writer, "empty");
 		mpack_write_bool(&writer, !!(chunk->data[i].flags & ClusterFlags_Empty));
 		mpack_write_cstr(&writer, "blocks");
-		mpack_write_bin(&writer, (char*)chunk->data[i].blocks, sizeof(chunk->data[i].blocks));
+		mpack_write_bin(&writer, (char*)chunk->data[i].blocks, chunk->data[i].flags & ClusterFlags_Empty && !testRun ? 4 : sizeof(chunk->data[i].blocks));
 		mpack_finish_map(&writer);
 	}
 	mpack_finish_array(&writer);
 
 	mpack_write_cstr(&writer, "heightmap");
 	mpack_write_bin(&writer, (char*)chunk->heightmap, sizeof(chunk->heightmap));
+
+	mpack_write_cstr(&writer, "worldGenProgress");
+	mpack_write_i8(&writer, chunk->worldGenProgress);
 
 	mpack_finish_map(&writer);
 
@@ -162,8 +165,19 @@ static savedChunk serializeChunk(Chunk* chunk, bool testRun) {
 	savedChunk out;
 	out.x = chunk->x;
 	out.z = chunk->z;
-	out.data = testRun ? ptr : cacheMemForChunk;
-	out.size = testRun ? size : serializedSizeInMem;
+	if (testRun) {
+		out.data = ptr;
+		out.size = size;
+	} else {
+		mz_ulong cLength = serializedSizeInMem;
+		err = mz_compress(compressionBuffer, &cLength, cacheMemForChunk, writer.used);
+		if (err != MZ_OK) {
+			printf("Error while compressing chunk %d\n", err);
+		}
+
+		out.data = compressionBuffer;
+		out.size = cLength;
+	}
 
 	return out;
 }
@@ -171,7 +185,10 @@ static savedChunk serializeChunk(Chunk* chunk, bool testRun) {
 static void deserializeChunk(savedChunk data, Chunk* out) {
 	mpack_tree_t tree;
 
-	mpack_tree_init(&tree, data.data, data.size);
+	mz_ulong uncompressedSize = serializedSizeInMem;
+	mz_uncompress(compressionBuffer, &uncompressedSize, (void*)data.data, data.size);
+
+	mpack_tree_init(&tree, compressionBuffer, uncompressedSize);
 	mpack_node_t root = mpack_tree_root(&tree);
 
 	mpack_node_t clusters = mpack_node_map_cstr(root, "cluster");
@@ -192,6 +209,7 @@ static void deserializeChunk(savedChunk data, Chunk* out) {
 	mpack_node_t heightmap = mpack_node_map_cstr(root, "heightmap");
 	memcpy(out->heightmap, mpack_node_data(heightmap), sizeof(out->heightmap));
 	out->heightMapEdit = out->editsCounter;
+	out->worldGenProgress = mpack_node_i8(mpack_node_map_cstr(root, "worldGenProgress"));
 
 	mpack_error_t err = mpack_tree_destroy(&tree);
 	if (err != mpack_ok) {
@@ -339,12 +357,13 @@ bool SaveManager_LoadChunk(ChunkWorker_Queue* queue, ChunkWorker_Task task) {
 			savedChunk.data = cacheMemForChunk;
 			task.chunk->editsCounter = chunk.editCounter;
 			deserializeChunk(savedChunk, task.chunk);
+
+			if (task.chunk->worldGenProgress == WorldGenProgress_NotLoaded) task.chunk->worldGenProgress = WorldGenProgress_Empty;
 			return true;
 		}
 	}
-	// printf("Not found, generating\n");
-	task.type = ChunkWorker_TaskDecorateChunk;
-	task.chunk->tasksPending++;
-	vec_push(queue, task);
+	printf("No matching chunk found\n");
+	task.chunk->worldGenProgress = WorldGenProgress_Empty;
+
 	return true;
 }

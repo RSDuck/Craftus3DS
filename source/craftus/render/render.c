@@ -104,10 +104,10 @@ void Render_Exit() {
 
 static void polygonizeWorld(World* world) {
 	ChunkCache* cache = world->cache[0];
-	for (int x = 0; x < CACHE_SIZE; x++) {
-		for (int z = 0; z < CACHE_SIZE; z++) {
+	for (int x = 1; x < CACHE_SIZE - 1; x++) {
+		for (int z = 1; z < CACHE_SIZE - 1; z++) {
 			Chunk* c = cache->cache[x][z];
-			if (c->flags & ClusterFlags_VBODirty) {
+			if (c->flags & ClusterFlags_VBODirty && c->worldGenProgress == WorldGenProgress_Decoration) {
 				if (BlockRender_PolygonizeChunk(world, c, true)) {
 					c->flags &= ~ClusterFlags_VBODirty;
 					return;
@@ -143,7 +143,8 @@ static void drawWorld(Player* player) {
 			float chunkX = c->x * CHUNK_WIDTH, chunkZ = c->z * CHUNK_DEPTH;
 			float distXZSqr = (chunkX - player->x) * (chunkX - player->x) + (chunkZ - player->z) * (chunkZ - player->z);
 			if (!(c->tasksPending > 0) &&
-			    distXZSqr <= (3.f * 16.f * 3.f * 16.f) /*((M_PI + 1.f - fabsf(player->pitch)) * 16.f * (M_PI + 1.f - fabsf(player->pitch)) * 16.f)*/)
+			    distXZSqr <= (3.f * CHUNK_CLUSTER_HEIGHT * 3.f *
+					  CHUNK_CLUSTER_HEIGHT) /*((M_PI + 1.f - fabsf(player->pitch)) * 16.f * (M_PI + 1.f - fabsf(player->pitch)) * 16.f)*/)
 				if (Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, 0.f, chunkX}, (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH})) {
 					bool passed = false;
 
@@ -154,7 +155,7 @@ static void drawWorld(Player* player) {
 						for (int j = (FastFloor(player->y) < 0.f) ? 0 : FastFloor(player->y / CHUNK_CLUSTER_HEIGHT);
 						     (j < CHUNK_CLUSTER_COUNT && k == 1) || (j >= 0 && k == -1); j += k) {
 							float distYSqr = j * CHUNK_CLUSTER_HEIGHT - player->y;
-							if (c->data[j].vbo.memory && c->data[j].vertexCount && distYSqr <= (4.f * 16.f)) {
+							if (c->data[j].vbo.memory && c->data[j].vertexCount && distYSqr <= (3.f * CHUNK_CLUSTER_HEIGHT)) {
 								bool visible = Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, j * CHUNK_CLUSTER_HEIGHT, chunkX},
 												    (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_CLUSTER_HEIGHT, CHUNK_WIDTH});
 								if (visible) {

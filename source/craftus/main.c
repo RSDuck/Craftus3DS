@@ -78,9 +78,9 @@ int main(int argc, char* argv[]) {
 	cworker = ChunkWorker_New(world);
 
 	if (world->genConfig.type == World_GenNormal) {
-		ChunkWorker_AddHandler(cworker, ChunkWorker_TaskDecorateChunk, &WorldGen_ChunkBaseGenerator, 0);
+		ChunkWorker_AddHandler(cworker, ChunkWorker_TaskBaseGeneration, &WorldGen_ChunkBaseGenerator, 0);
 	} else {
-		ChunkWorker_AddHandler(cworker, ChunkWorker_TaskDecorateChunk, &generateFlatWorld_test, 0);
+		ChunkWorker_AddHandler(cworker, ChunkWorker_TaskBaseGeneration, &generateFlatWorld_test, 0);
 	}
 
 	ChunkWorker_AddHandler(cworker, ChunkWorker_TaskOpenChunk, &SaveManager_LoadChunk, 0);
@@ -96,12 +96,15 @@ int main(int argc, char* argv[]) {
 		float current = cworker->queue[0].length + cworker->queue[1].length;
 		// consoleClear();
 		// printf("Generating world %d%%\n", 100 - (int)((current / max) * 100.f) + 1);
+
 		svcSleepThread(4800000);
+
+		World_Tick(world);
 	}
 
-	for (int x = 0; x < CACHE_SIZE; x++) {
-		for (int z = 0; z < CACHE_SIZE; z++) {
-			if (world->cache[0]->cache[x][z]->flags & ClusterFlags_VBODirty)
+	for (int x = 1; x < CACHE_SIZE - 1; x++) {
+		for (int z = 1; z < CACHE_SIZE - 1; z++) {
+			if (world->cache[0]->cache[x][z]->flags & ClusterFlags_VBODirty && world->cache[0]->cache[x][z]->worldGenProgress == WorldGenProgress_Decoration)
 				if (BlockRender_PolygonizeChunk(world, world->cache[0]->cache[x][z], false)) {
 					world->cache[0]->cache[x][z]->flags &= ~ClusterFlags_VBODirty;
 				}
