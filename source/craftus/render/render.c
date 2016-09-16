@@ -107,7 +107,7 @@ static void polygonizeWorld(World* world) {
 	for (int x = 1; x < CACHE_SIZE - 1; x++) {
 		for (int z = 1; z < CACHE_SIZE - 1; z++) {
 			Chunk* c = cache->cache[x][z];
-			if (c->flags & ClusterFlags_VBODirty && c->worldGenProgress == WorldGenProgress_Decoration) {
+			if (c->flags & ClusterFlags_VBODirty && c->worldGenProgress == WorldGenProgress_Decoration && !c->tasksPending) {
 				if (BlockRender_PolygonizeChunk(world, c, true)) {
 					c->flags &= ~ClusterFlags_VBODirty;
 					return;

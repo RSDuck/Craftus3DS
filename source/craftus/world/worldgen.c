@@ -14,7 +14,7 @@ static inline float trilerp(float q111, float q211, float q121, float q221, floa
 	return lerp(bilerp(q111, q211, q112, q212, x, z), bilerp(q121, q221, q122, q222, x, z), y);
 }
 
-float octave_noise(int octaves, float persistence, float scale, float x, float y) {
+inline float octave_noise(int octaves, float persistence, float scale, float x, float y) {
 	float total = 0;
 	float frequency = scale;
 	float amplitude = 1;
@@ -36,6 +36,19 @@ float octave_noise(int octaves, float persistence, float scale, float x, float y
 
 bool WorldGen_ChunkBaseGenerator(ChunkWorker_Queue* queue, ChunkWorker_Task task) {
 	// printf("Generating chunk...\n");
+	float noiseTable3D[2][CHUNK_CLUSTER_COUNT + 1][2];
+	for (int x = 0; x < 2; x++) {
+		for (int y = 0; y < CHUNK_CLUSTER_COUNT + 1; y++) {
+			for (int z = 0; z < 2; z++) {
+				float absX = (x * CHUNK_WIDTH) + task.chunk->x;
+				float absY = (y * CHUNK_CLUSTER_HEIGHT);
+				float absZ = (z * CHUNK_DEPTH) + task.chunk->z;
+
+				noiseTable3D[x][y][z] = snoise3(&setup.permTable, absX, absY, absZ);
+			}
+		}
+	}
+
 	float offsetX = task.chunk->x * CHUNK_WIDTH, offsetZ = task.chunk->z * CHUNK_DEPTH;
 
 	for (int x = 0; x < CHUNK_WIDTH; x++) {
@@ -44,10 +57,15 @@ bool WorldGen_ChunkBaseGenerator(ChunkWorker_Queue* queue, ChunkWorker_Task task
 			// float subrangeX = (float)(x % 4) * 0.25f, subrangeZ = (float)(z % 4) * 0.25f;
 			float v = snoise2(&setup.permTable, (offsetX + x) * 0.05f, (offsetZ + z) * 0.05f) * 8.f;
 			for (int y = 0; y < (int)v + WORLDGEN_SEALEVEL; y++) {
+				int lY = y / CHUNK_CLUSTER_HEIGHT;
+
 				if (y > WORLDGEN_SEALEVEL - 24) {
+					float n3 = trilerp(noiseTable3D[0][lY][0], noiseTable3D[1][lY][0], noiseTable3D[0][lY][1], noiseTable3D[1][lY][1], noiseTable3D[0][lY][0],
+							   noiseTable3D[1][lY + 1][0], noiseTable3D[0][lY + 1][1], noiseTable3D[1][lY + 1][1], (float)x / (float)CHUNK_WIDTH,
+							   (float)(y - lY * CHUNK_CLUSTER_HEIGHT) / (float)CHUNK_CLUSTER_HEIGHT, (float)z / (float)CHUNK_DEPTH);
 					/*float v2 = snoise3(&setup.permTable, (offsetX + x + 10) * 0.025f, (float)y * 0.1f, (offsetZ + z + 10) * 0.025f);
 					if (v2 * 10.f > 0.2f) {*/
-					Chunk_SetBlock(task.chunk, x, y, z, Block_Stone);
+					if (n3 * 10.f > 0.2f) Chunk_SetBlock(task.chunk, x, y, z, Block_Stone);
 					//}
 				} else
 					Chunk_SetBlock(task.chunk, x, y, z, Block_Stone);

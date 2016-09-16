@@ -39,6 +39,8 @@ static void* compressionBuffer;
 
 static int serializedSizeInMem = 0;
 
+static Player* player;
+
 static FILE* chunkFile;
 
 static vec_t(chunkEntry) savedChunks;
@@ -114,16 +116,74 @@ static void saveManifest() {
 	mpack_writer_t writer;
 	mpack_writer_init_file(&writer, manifestPath);
 
-	mpack_start_map(&writer, 2);
+	mpack_start_map(&writer, 3);
 	mpack_write_cstr(&writer, "seed");
 	mpack_write_i64(&writer, workingWorld->genConfig.seed);
 	mpack_write_cstr(&writer, "type");
 	mpack_write_i8(&writer, workingWorld->genConfig.type);
+
+	mpack_write_cstr(&writer, "player");
+	mpack_start_map(&writer, 6);
+	mpack_write_cstr(&writer, "x");
+	mpack_write_float(&writer, player->x);
+	mpack_write_cstr(&writer, "y");
+	mpack_write_float(&writer, player->y);
+	mpack_write_cstr(&writer, "z");
+	mpack_write_float(&writer, player->z);
+
+	mpack_write_cstr(&writer, "pitch");
+	mpack_write_float(&writer, player->pitch);
+	mpack_write_cstr(&writer, "yaw");
+	mpack_write_float(&writer, player->yaw);
+
+	mpack_write_cstr(&writer, "flying");
+	mpack_write_bool(&writer, player->flying);
+	mpack_finish_map(&writer);
+
 	mpack_finish_map(&writer);
 
 	if (mpack_writer_destroy(&writer) != mpack_ok) {
 		printf("Couldn't write to file!\n");
 	}
+}
+
+static void loadManifest() {
+	mpack_tree_t tree;
+	mpack_tree_init_file(&tree, manifestPath, 0);
+	mpack_node_t root = mpack_tree_root(&tree);
+
+	long seed = mpack_node_i64(mpack_node_map_cstr(root, "seed"));
+	char type = mpack_node_i8(mpack_node_map_cstr(root, "type"));
+
+	mpack_node_t playerNode = mpack_node_map_cstr(root, "player");
+	float pX = mpack_node_float(mpack_node_map_cstr(playerNode, "x"));
+	float pY = mpack_node_float(mpack_node_map_cstr(playerNode, "y"));
+	float pZ = mpack_node_float(mpack_node_map_cstr(playerNode, "z"));
+
+	float pitch = mpack_node_float(mpack_node_map_cstr(playerNode, "pitch"));
+	float yaw = mpack_node_float(mpack_node_map_cstr(playerNode, "yaw"));
+
+	bool flying = mpack_node_bool(mpack_node_map_cstr(playerNode, "flying"));
+
+	if (mpack_tree_destroy(&tree) != mpack_ok) {
+		saveManifest();
+		printf("Couldn't read manifest, creating a new one\n");
+	} else {
+		printf("Sucessfull read world manifest!\n");
+		workingWorld->genConfig.seed = seed;
+		workingWorld->genConfig.type = type;
+
+		player->x = pX;
+		player->y = pY;
+		player->z = pZ;
+
+		player->yaw = yaw;
+		player->pitch = pitch;
+
+		player->flying = flying;
+	}
+
+	printf("Gone through\n");
 }
 
 static savedChunk serializeChunk(Chunk* chunk, bool testRun) {
@@ -217,7 +277,7 @@ static void deserializeChunk(savedChunk data, Chunk* out) {
 	}
 }
 
-void SaveManager_Init(World* world) {
+void SaveManager_Init(World* world, Player* player) {
 	{
 		Chunk* c = (Chunk*)malloc(sizeof(Chunk));
 		savedChunk sC = serializeChunk(c, true);
@@ -241,24 +301,6 @@ void SaveManager_Init(World* world) {
 	mkdir(worldDir, 777);
 	sprintf(worldDir, "sdmc:/craftus/saves/%s", world->name);
 	mkdir(worldDir, 777);
-
-	mpack_tree_t tree;
-	mpack_tree_init_file(&tree, manifestPath, 0);
-	mpack_node_t root = mpack_tree_root(&tree);
-
-	long seed = mpack_node_i64(mpack_node_map_cstr(root, "seed"));
-	char type = mpack_node_i8(mpack_node_map_cstr(root, "type"));
-
-	if (mpack_tree_destroy(&tree) != mpack_ok) {
-		saveManifest();
-		printf("Couldn't read manifest, creating a new one\n");
-	} else {
-		printf("Sucessfull read world manifest!\n");
-		workingWorld->genConfig.seed = seed;
-		workingWorld->genConfig.type = type;
-	}
-
-	printf("Gone through\n");
 
 	chunkFile = fopen(chunksPath, "r+b");
 	if (!chunkFile) {

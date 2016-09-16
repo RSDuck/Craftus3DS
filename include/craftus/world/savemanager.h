@@ -1,9 +1,10 @@
 #ifndef SAVEMANAGER_H_INCLUDED
 
+#include "craftus/entity/player.h"
 #include "craftus/world/chunkworker.h"
 #include "craftus/world/world.h"
 
-void SaveManager_Init(World* world);
+void SaveManager_Init(World* world, Player* player);
 void SaveManager_Free();
 
 void SaveManager_Flush();

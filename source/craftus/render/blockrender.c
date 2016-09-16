@@ -147,7 +147,7 @@ const int aoTable[Directions_Count][4][3] = {
 };
 
 bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk, bool progressive) {
-	if (chunk->tasksPending > 0) return false;
+	// if (chunk->tasksPending > 0) return false;
 
 	int clean = 0;
 

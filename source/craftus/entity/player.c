@@ -113,12 +113,9 @@ void Player_Update(Player* player, u32 input, float deltaTime) {
 	if (input & KEY_X && player->pitch + 100.f * DEG_TO_RAD * deltaTime < M_PI) player->pitch += 100.f * DEG_TO_RAD * deltaTime;
 	if (input & KEY_B && player->pitch - 100.f * DEG_TO_RAD * deltaTime > -M_PI) player->pitch -= 100.f * DEG_TO_RAD * deltaTime;
 
-	if (lastKeys & KEY_L && !(input & KEY_L) && player->flyingControl > 0.f) {
-		player->flying ^= true;
-	}
-	if (lastKeys & KEY_L && !(input & KEY_L) && player->flyingControl == 0.f) {
-		player->flyingControl = 0.3f;
-	}
+	if (lastKeys & KEY_L && !(input & KEY_L) && player->flyingControl > 0.f) player->flying ^= true;
+	if (lastKeys & KEY_L && !(input & KEY_L) && player->flyingControl == 0.f) player->flyingControl = 0.3f;
+
 	player->flyingControl = MAX(player->flyingControl - deltaTime, 0.f);
 
 	if (!player->flying) {

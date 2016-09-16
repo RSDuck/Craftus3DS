@@ -42,7 +42,6 @@ static bool generateFlatWorld_test(ChunkWorker_Queue* queue, ChunkWorker_Task ta
 ChunkWorker* cworker;
 int main(int argc, char* argv[]) {
 	HIDUSER_EnableGyroscope();
-
 	gfxInitDefault();
 
 	PrintConsole consoleStatus;
@@ -69,10 +68,10 @@ int main(int argc, char* argv[]) {
 
 	Render_Init();
 
+	Player* player = Player_New();
 	World* world = World_New();
 
-	SaveManager_Init(world);
-	// world->genConfig.type = World_GenSuperFlat;
+	SaveManager_Init(world, player);
 	WorldGen_Setup(world);
 
 	cworker = ChunkWorker_New(world);
@@ -86,7 +85,6 @@ int main(int argc, char* argv[]) {
 	ChunkWorker_AddHandler(cworker, ChunkWorker_TaskOpenChunk, &SaveManager_LoadChunk, 0);
 	ChunkWorker_AddHandler(cworker, ChunkWorker_TaskSaveChunk, &SaveManager_SaveChunk, 0);
 
-	Player* player = Player_New();
 	Player_Spawn(player, world);
 
 	consoleSelect(&consoleStatus);
@@ -176,10 +174,8 @@ int main(int argc, char* argv[]) {
 	Render_Exit();
 
 	romfsExit();
-
 	gfxExit();
-
-	HIDUSER_DisableAccelerometer();
+	HIDUSER_DisableGyroscope();
 
 	return 0;
 }
