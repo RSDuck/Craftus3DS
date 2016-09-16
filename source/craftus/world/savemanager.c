@@ -295,26 +295,27 @@ bool SaveManager_SaveChunk(ChunkWorker_Queue* queue, ChunkWorker_Task task) {
 	printf("Saving chunk(%d, %d)...\n", task.chunk->x, task.chunk->z);
 	vec_foreach (&savedChunks, chunk, i) {
 		if ((task.chunk->x == chunk.x && task.chunk->z == chunk.z) || !chunk.inUse) {
-			if ((chunk.inUse && chunk.editCounter != task.chunk->editsCounter) || !chunk.inUse) {
-				if (chunk.size >= newChunk.size) {
-					fseek(chunkFile, chunk.filePosition, SEEK_SET);
-					size_t written = fwrite(newChunk.data, 1, newChunk.size, chunkFile);
-					savedChunks.data[i].editCounter = task.chunk->editsCounter;
-					savedChunks.data[i].inUse = true;
-					savedChunks.data[i].x = task.chunk->x;
-					savedChunks.data[i].z = task.chunk->z;
+			if (chunk.editCounter == task.chunk->editsCounter) return true;
 
-					if (written != newChunk.size) {
-						printf("!Warning! written memory does not match\n");
-					}
+			if (chunk.size >= newChunk.size) {
+				fseek(chunkFile, chunk.filePosition, SEEK_SET);
+				size_t written = fwrite(newChunk.data, 1, newChunk.size, chunkFile);
+				savedChunks.data[i].editCounter = task.chunk->editsCounter;
+				savedChunks.data[i].inUse = true;
+				savedChunks.data[i].x = task.chunk->x;
+				savedChunks.data[i].z = task.chunk->z;
 
-					return true;
-				} else {
-					savedChunks.data[i].inUse = false;
+				if (written != newChunk.size) {
+					printf("!Warning! written memory does not match\n");
 				}
+
+				return true;
+			} else {
+				savedChunks.data[i].inUse = false;
 			}
 		}
 	}
+
 	fseek(chunkFile, writingHead, SEEK_SET);
 
 	size_t written = fwrite(newChunk.data, 1, newChunk.size, chunkFile);
