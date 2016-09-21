@@ -39,7 +39,7 @@ static void* compressionBuffer;
 
 static int serializedSizeInMem = 0;
 
-static Player* player;
+static Player* workingPlayer;
 
 static FILE* chunkFile;
 
@@ -125,19 +125,19 @@ static void saveManifest() {
 	mpack_write_cstr(&writer, "player");
 	mpack_start_map(&writer, 6);
 	mpack_write_cstr(&writer, "x");
-	mpack_write_float(&writer, player->x);
+	mpack_write_float(&writer, workingPlayer->x);
 	mpack_write_cstr(&writer, "y");
-	mpack_write_float(&writer, player->y);
+	mpack_write_float(&writer, workingPlayer->y);
 	mpack_write_cstr(&writer, "z");
-	mpack_write_float(&writer, player->z);
+	mpack_write_float(&writer, workingPlayer->z);
 
 	mpack_write_cstr(&writer, "pitch");
-	mpack_write_float(&writer, player->pitch);
+	mpack_write_float(&writer, workingPlayer->pitch);
 	mpack_write_cstr(&writer, "yaw");
-	mpack_write_float(&writer, player->yaw);
+	mpack_write_float(&writer, workingPlayer->yaw);
 
 	mpack_write_cstr(&writer, "flying");
-	mpack_write_bool(&writer, player->flying);
+	mpack_write_bool(&writer, workingPlayer->flying);
 	mpack_finish_map(&writer);
 
 	mpack_finish_map(&writer);
@@ -173,14 +173,14 @@ static void loadManifest() {
 		workingWorld->genConfig.seed = seed;
 		workingWorld->genConfig.type = type;
 
-		player->x = pX;
-		player->y = pY;
-		player->z = pZ;
+		workingPlayer->x = pX;
+		workingPlayer->y = pY;
+		workingPlayer->z = pZ;
 
-		player->yaw = yaw;
-		player->pitch = pitch;
+		workingPlayer->yaw = yaw;
+		workingPlayer->pitch = pitch;
 
-		player->flying = flying;
+		workingPlayer->flying = flying;
 	}
 
 	printf("Gone through\n");
@@ -292,6 +292,7 @@ void SaveManager_Init(World* world, Player* player) {
 	vec_init(&savedChunks);
 
 	workingWorld = world;
+	workingPlayer = player;
 	sprintf(manifestPath, "sdmc:/craftus/saves/%s/level.mpack", world->name);
 	sprintf(chunksPath, "sdmc:/craftus/saves/%s/chunks.bin", world->name);
 	sprintf(indexPath, "sdmc:/craftus/saves/%s/index.mpack", world->name);

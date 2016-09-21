@@ -4,14 +4,13 @@ void Camera_Init(Camera* cam) {
 	Mtx_Identity(&cam->view);
 
 	cam->fov = C3D_AngleFromDegrees(60.f);
-	cam->near = 0.01f, cam->far = 100.f;
+	cam->near = 0.01f, cam->far = 3.f * CHUNK_WIDTH - 4.f;
 
-	Mtx_PerspTilt(&cam->projection, cam->fov, 400.f / 240.f, cam->near, cam->far, false);
+	Mtx_PerspTilt(&cam->projection, cam->fov, ((400.f / 2.f) / (240.f / 2.f)), cam->near, cam->far, false);
 }
 
-const float scaling = 1.3f;
 void Camera_Update(Camera* cam, Player* player, float iod) {
-	Mtx_PerspStereoTilt(&cam->projection, cam->fov, 400 / 240.f, cam->near, cam->far, iod, 2.f, false);
+	Mtx_PerspStereoTilt(&cam->projection, cam->fov, ((400.f / 2.f) / (240.f / 2.f)), cam->near, cam->far, iod, 2.f, false);
 
 	Mtx_Identity(&cam->view);
 	Mtx_RotateX(&cam->view, -player->pitch, true);
@@ -20,6 +19,7 @@ void Camera_Update(Camera* cam, Player* player, float iod) {
 
 	C3D_Mtx vp;
 	Mtx_Multiply(&vp, &cam->projection, &cam->view);
+	// Mtx_Copy(&vp, &cam->projection);
 
 	C3D_FVec rowX = vp.r[0];
 	C3D_FVec rowY = vp.r[1];
@@ -57,5 +57,6 @@ bool Camera_IsAABBVisible(Camera* cam, C3D_FVec orgin, C3D_FVec size) {
 		if (frustum[p].x * (x + size.x) + frustum[p].y * (y + size.y) + frustum[p].z * (z + size.z) + frustum[p].w > 0) continue;
 		return false;
 	}
+
 	return true;
 }

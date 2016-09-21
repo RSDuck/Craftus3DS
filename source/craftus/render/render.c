@@ -39,11 +39,11 @@ void Render_Init() {
 
 	C3D_Init(C3D_DEFAULT_CMDBUF_SIZE * 2);
 
-	target = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24);
+	target = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH16);
 	C3D_RenderTargetSetClear(target, C3D_CLEAR_ALL, 0x68B0D8FF, 0);
 	C3D_RenderTargetSetOutput(target, GFX_TOP, GFX_LEFT, DISPLAY_TRANSFER_FLAGS);
 
-	rightTarget = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24);
+	rightTarget = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH16);
 	C3D_RenderTargetSetClear(rightTarget, C3D_CLEAR_ALL, 0x68B0D8FF, 0);
 	C3D_RenderTargetSetOutput(rightTarget, GFX_TOP, GFX_RIGHT, DISPLAY_TRANSFER_FLAGS);
 
@@ -128,7 +128,7 @@ static void drawWorld(Player* player) {
 
 	ChunkCache* cache = player->cache;
 
-	int verticesTotal = 0;
+	int verticesTotal = INT32_MAX;
 
 	// TODO: Multthreading für Chunk polygonisierung
 	int length = 1;
@@ -137,6 +137,7 @@ static void drawWorld(Player* player) {
 	int flipper = 2;
 	int turn = 0;
 	int totalTurn = 0;
+
 	while (true) {  // Zeichnet die Chunks in Schlangenform und dadurch automatisch tsie vordersten zuerst
 		for (int i = 0; i < length; i++) {
 			Chunk* c = cache->cache[pX][pZ];
@@ -146,30 +147,24 @@ static void drawWorld(Player* player) {
 			    distXZSqr <= (3.f * CHUNK_CLUSTER_HEIGHT * 3.f *
 					  CHUNK_CLUSTER_HEIGHT) /*((M_PI + 1.f - fabsf(player->pitch)) * 16.f * (M_PI + 1.f - fabsf(player->pitch)) * 16.f)*/)
 				if (Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, 0.f, chunkX}, (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_HEIGHT, CHUNK_WIDTH})) {
-					bool passed = false;
-
 					C3D_BufInfo bufInfo;
-					BufInfo_Init(&bufInfo);
+
+					int clampedPlayerPos = (FastFloor(player->y) < 0 ? 0 : (FastFloor(player->y) >= CHUNK_HEIGHT ? CHUNK_HEIGHT - 1 : FastFloor(player->y))) /
+							       CHUNK_CLUSTER_HEIGHT;
 
 					for (int k = -1; k < 2; k += 2)
-						for (int j = (FastFloor(player->y) < 0.f) ? 0 : FastFloor(player->y / CHUNK_CLUSTER_HEIGHT);
-						     (j < CHUNK_CLUSTER_COUNT && k == 1) || (j >= 0 && k == -1); j += k) {
+						for (int j = clampedPlayerPos; (j < CHUNK_CLUSTER_COUNT && k == 1) || (j >= 0 && k == -1); j += k) {
 							float distYSqr = j * CHUNK_CLUSTER_HEIGHT - player->y;
 							if (c->data[j].vbo.memory && c->data[j].vertexCount && distYSqr <= (3.f * CHUNK_CLUSTER_HEIGHT)) {
 								bool visible = Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, j * CHUNK_CLUSTER_HEIGHT, chunkX},
 												    (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_CLUSTER_HEIGHT, CHUNK_WIDTH});
 								if (visible) {
+									BufInfo_Init(&bufInfo);
 									BufInfo_Add(&bufInfo, c->data[j].vbo.memory, sizeof(world_vertex), 2, 0x10);
-
 									C3D_SetBufInfo(&bufInfo);
 
 									C3D_DrawArrays(GPU_TRIANGLES, 0, c->data[j].vertexCount);
-
-									verticesTotal += c->data[j].vertexCount;
-
-									passed = true;
-								} else if (passed)
-									break;
+								}
 							}
 						}
 
@@ -191,7 +186,7 @@ static void drawWorld(Player* player) {
 		totalTurn++;
 	}
 
-	// printf("%d vertices\n", verticesTotal);
+	// printf("pushing %d vertices\n", verticesTotal);
 }
 
 static inline void immWorldVtx(float x, float y, float z, float u, float v, float brightness) {
@@ -257,7 +252,7 @@ static void drawCursor(Player* player) {
 		C3D_Mtx modelView, modelMatrix;
 		Mtx_Identity(&modelMatrix);
 		Mtx_Translate(&modelMatrix, player->seightX - 0.035f, player->seightY - 0.035f, player->seightZ - 0.035f, true);
-		Mtx_Scale(&modelMatrix, 1.07f, 1.07f, 1.07f);
+		Mtx_Scale(&modelMatrix, 1.1f, 1.1f, 1.1f);
 
 		Mtx_Multiply(&modelView, &camera.view, &modelMatrix);
 		C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocModelView, &modelView);

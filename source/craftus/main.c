@@ -7,7 +7,6 @@
 
 #include <3ds.h>
 #include <citro3d.h>
-
 #include <stdio.h>
 
 static bool generateFlatWorld_test(ChunkWorker_Queue* queue, ChunkWorker_Task task) {
@@ -166,16 +165,19 @@ int main(int argc, char* argv[]) {
 
 	ChunkWorker_Stop(cworker);
 
+	printf("Exited from everywhere\n");
+
+	SaveManager_Free();
+
 	World_Free(world);
 	Player_Free(player);
 
-	SaveManager_Free();
+	printf("Freed player and world\n");
 
 	Render_Exit();
 
 	romfsExit();
 	gfxExit();
-	HIDUSER_DisableGyroscope();
 
 	return 0;
 }
