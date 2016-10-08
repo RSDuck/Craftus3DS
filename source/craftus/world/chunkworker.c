@@ -79,7 +79,7 @@ void ChunkWorker_Main(void* args) {
 				ChunkWorker_Task task = vec_pop(&worker->queue[operatingOn]);
 
 				for (int i = 0; i < worker->handler[task.type].length; i++) {
-					worker->handler[task.type].data[i].func(&worker->queue[operatingOn], task);
+					worker->handler[task.type].data[i].func(&worker->queue[worker->currentQueue], task);
 				}
 				// vec_push(&unlockList, task.chunk);
 				task.chunk->tasksPending--;

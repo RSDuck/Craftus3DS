@@ -34,6 +34,17 @@ inline float octave_noise(int octaves, float persistence, float scale, float x, 
 	return total / maxAmplitude;
 }
 
+bool WorldGen_ChunkDecorator(ChunkWorker_Queue* queue, ChunkWorker_Task task) {
+	Chunk* c = task.chunk;
+	Chunk_RecalcHeightMap(c);
+
+	for (int i = 0; i < 4; i++) {
+		// octave_noise()
+	}
+
+	return true;
+}
+
 bool WorldGen_ChunkBaseGenerator(ChunkWorker_Queue* queue, ChunkWorker_Task task) {
 	// printf("Generating chunk...\n");
 	/*float noiseTable3D[2][CHUNK_CLUSTER_COUNT + 1][2];

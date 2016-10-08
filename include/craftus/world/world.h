@@ -30,9 +30,9 @@ typedef struct {
 	Block blocks[CHUNK_WIDTH][CHUNK_CLUSTER_HEIGHT][CHUNK_DEPTH];
 	int flags;
 
-	VBO_Block vbo;
+	VBO_Block vbo[2];  // 0: Opaque pass, 1: Transparent pass
 
-	int vertexCount;
+	int vertexCount[2];
 } Cluster;
 
 typedef struct {
@@ -48,6 +48,7 @@ typedef struct {
 
 	u32 editsCounter;
 	u32 tasksPending;
+	bool vertexTask;
 
 	u32 worldGenProgress;
 

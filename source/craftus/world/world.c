@@ -115,7 +115,10 @@ Chunk* World_GetChunk(World* world, int x, int z) {
 }
 
 void World_FreeChunk(World* world, Chunk* chunk) {
-	for (int j = 0; j < CHUNK_CLUSTER_COUNT; j++) VBO_Free(chunk->data[j].vbo);
+	for (int j = 0; j < CHUNK_CLUSTER_COUNT; j++) {
+		VBO_Free(chunk->data[j].vbo[0]);
+		VBO_Free(chunk->data[j].vbo[1]);
+	}
 	poolFree(&world->chunkpool, chunk);
 }
 
@@ -223,6 +226,7 @@ void World_Tick(World* world) {
 
 				if (!stillTasksToDo) {
 					ChunkWorker_AddJob(cworker, chunk, ChunkWorker_TaskDecorateChunk);
+					// ChunkWorker_AddJob(cworker, chunk, ChunkWorker_TaskPolygonizeChunk);
 				}
 			}
 

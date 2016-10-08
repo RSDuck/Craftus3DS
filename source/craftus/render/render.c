@@ -84,10 +84,14 @@ void Render_Init() {
 	}
 	GX_FlushCacheRegions((u32*)cursorVBO, sizeof(cube_sides_lut), NULL, 0, NULL, 0);
 
+	BlockRender_Init();
+
 	VBOCache_Init();
 }
 
 void Render_Exit() {
+	BlockRender_Free();
+
 	VBOCache_Free();
 
 	linearFree(cursorVBO);
@@ -107,14 +111,17 @@ static void polygonizeWorld(World* world) {
 	for (int x = 1; x < CACHE_SIZE - 1; x++) {
 		for (int z = 1; z < CACHE_SIZE - 1; z++) {
 			Chunk* c = cache->cache[x][z];
+			extern ChunkWorker* cworker;
 			if (c->flags & ClusterFlags_VBODirty && c->worldGenProgress == WorldGenProgress_Decoration && !c->tasksPending) {
-				if (BlockRender_PolygonizeChunk(world, c, true)) {
+				/*if (BlockRender_PolygonizeChunk(world, c, true)) {
 					c->flags &= ~ClusterFlags_VBODirty;
 					return;
-				}
+				}*/
+				ChunkWorker_AddJob(cworker, c, ChunkWorker_TaskPolygonizeChunk);
 			}
 		}
 	}
+	BlockRender_PutBuffersIntoPlace(world);
 }
 
 static void drawWorld(Player* player) {
@@ -124,11 +131,12 @@ static void drawWorld(Player* player) {
 
 	C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, world_shader_uLocModelView, &camera.view);
 
+	uint8_t chunkDrawState[CACHE_SIZE][CHUNK_CLUSTER_COUNT][CACHE_SIZE];
+	memset(chunkDrawState, 0x0, sizeof(chunkDrawState));
+
 	const int turnTable[4][2] = {{-1, 0}, {0, -1}, {1, 0}, {0, 1}};
 
 	ChunkCache* cache = player->cache;
-
-	int verticesTotal = INT32_MAX;
 
 	// TODO: Multthreading für Chunk polygonisierung
 	int length = 1;
@@ -137,6 +145,8 @@ static void drawWorld(Player* player) {
 	int flipper = 2;
 	int turn = 0;
 	int totalTurn = 0;
+
+	C3D_CullFace(GPU_CULL_BACK_CCW);
 
 	while (true) {  // Zeichnet die Chunks in Schlangenform und dadurch automatisch tsie vordersten zuerst
 		for (int i = 0; i < length; i++) {
@@ -155,15 +165,16 @@ static void drawWorld(Player* player) {
 					for (int k = -1; k < 2; k += 2)
 						for (int j = clampedPlayerPos; (j < CHUNK_CLUSTER_COUNT && k == 1) || (j >= 0 && k == -1); j += k) {
 							float distYSqr = j * CHUNK_CLUSTER_HEIGHT - player->y;
-							if (c->data[j].vbo.memory && c->data[j].vertexCount && distYSqr <= (3.f * CHUNK_CLUSTER_HEIGHT)) {
+							if (distYSqr <= (3.f * CHUNK_CLUSTER_HEIGHT)) {
 								bool visible = Camera_IsAABBVisible(&camera, (C3D_FVec){1.f, chunkZ, j * CHUNK_CLUSTER_HEIGHT, chunkX},
 												    (C3D_FVec){1.f, CHUNK_DEPTH, CHUNK_CLUSTER_HEIGHT, CHUNK_WIDTH});
-								if (visible) {
+								if (visible && c->data[j].vbo[1].memory && c->data[j].vertexCount[1]) chunkDrawState[pX][j][pZ] = 1;
+								if (visible && c->data[j].vbo[0].memory && c->data[j].vertexCount[0]) {
 									BufInfo_Init(&bufInfo);
-									BufInfo_Add(&bufInfo, c->data[j].vbo.memory, sizeof(world_vertex), 2, 0x10);
+									BufInfo_Add(&bufInfo, c->data[j].vbo[0].memory, sizeof(world_vertex), 2, 0x10);
 									C3D_SetBufInfo(&bufInfo);
 
-									C3D_DrawArrays(GPU_TRIANGLES, 0, c->data[j].vertexCount);
+									C3D_DrawArrays(GPU_TRIANGLES, 0, c->data[j].vertexCount[0]);
 								}
 							}
 						}
@@ -185,6 +196,22 @@ static void drawWorld(Player* player) {
 
 		totalTurn++;
 	}
+
+	C3D_CullFace(GPU_CULL_NONE);
+	for (int x = 0; x < CACHE_SIZE; x++)
+		for (int z = 0; z < CACHE_SIZE; z++) {
+			Chunk* c = cache->cache[x][z];
+
+			C3D_BufInfo bufInfo;
+			for (int y = 0; y < CHUNK_CLUSTER_COUNT; y++)
+				if (chunkDrawState[x][y][z]) {
+					BufInfo_Init(&bufInfo);
+					BufInfo_Add(&bufInfo, c->data[y].vbo[1].memory, sizeof(world_vertex), 2, 0x10);
+					C3D_SetBufInfo(&bufInfo);
+
+					C3D_DrawArrays(GPU_TRIANGLES, 0, c->data[y].vertexCount[1]);
+				}
+		}
 
 	// printf("pushing %d vertices\n", verticesTotal);
 }

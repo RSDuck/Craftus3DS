@@ -84,7 +84,7 @@ void Texture_MapInit(Texture_Map* map, char* files) {
 	int locX = 0;
 	int locY = 0;
 
-	char modableFiles[512];
+	char modableFiles[1024];
 	strcpy(modableFiles, files);
 
 	// printf("TextureMapInit %s\n", files);

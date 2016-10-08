@@ -5,8 +5,9 @@
 
 #include <citro3d.h>
 
-#include <setjmp.h>
 #include <stdio.h>
+
+#include "vec/vec.h"
 
 const world_vertex plantmodel[] = {
     // First face
@@ -117,13 +118,8 @@ const world_vertex cube_sides_lut[] = {
 typedef struct {
 	u8 x, y, z, sideAO;
 	Block block;
-	u8 brightness;
+	u8 brightnes;
 } Side;
-
-typedef struct {
-	u8 x, y, z;
-	u8 verticeMask;
-} Block_Vertices;
 
 static inline Block fastBlockFetch(World* world, Chunk* chunk, Cluster* cluster, int x, int y, int z) {
 	world->errFlags = 0;
@@ -146,47 +142,135 @@ const int aoTable[Directions_Count][4][3] = {
     {{0, 1, 0}, {0, -1, 0}, {0, 0, -1}, {0, 0, 1}}, {{0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}}, {{0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}},
 };
 
+#define MAX_SIDES (6 * (CHUNK_WIDTH * CHUNK_CLUSTER_HEIGHT * CHUNK_DEPTH / 2))
+
+typedef struct {
+	int x, y, z;
+	int vtxCount[2];
+	void* buf[2];
+} pendingChunkVtxs;
+
+#define BUFFERS_COUNT (2 * 4)
+static void* buffers[BUFFERS_COUNT];
+static int buffersUsed = 0;
+
+static void* aquireBuffer() {
+	if (buffersUsed != 0xFF) {
+		for (int i = 0; i < BUFFERS_COUNT; i++) {
+			if (!(buffersUsed & (1 << i))) {
+				buffersUsed |= (1 << i);
+				return buffers[i];
+			}
+		}
+	}
+	return NULL;
+}
+
+static void freeBuffer(void* buffer) {
+	for (int i = 0; i < BUFFERS_COUNT; i++) {
+		if (buffers[i] == buffer) {
+			buffersUsed &= ~(1 << i);
+			return;
+		}
+	}
+}
+
+static vec_t(pendingChunkVtxs) pendingChunks;
+
+void BlockRender_Init() {
+	vec_init(&pendingChunks);
+	for (int i = 0; i < BUFFERS_COUNT; i++) buffers[i] = malloc(MAX_SIDES * sizeof(world_vertex) * 6);
+}
+
+void BlockRender_Free() {
+	vec_deinit(&pendingChunks);
+	for (int i = 0; i < BUFFERS_COUNT; i++) free(buffers[i]);
+}
+
+void BlockRender_PutBuffersIntoPlace(World* world) {
+	if (pendingChunks.length > 0) {
+		pendingChunkVtxs vtxData = vec_pop(&pendingChunks);
+		Chunk* c = World_GetChunk(world, vtxData.x, vtxData.z);
+		if (c != NULL) {
+			Cluster* cluster = &c->data[vtxData.y];
+			for (int i = 0; i < 2; i++) {
+				if (vtxData.buf[i] != NULL) {
+					int vboBytestNeeded = sizeof(world_vertex) * vtxData.vtxCount[i];
+					if (cluster->vbo[i].memory == NULL || cluster->vbo[i].size == 0) {
+						cluster->vbo[i] = VBO_Alloc(vboBytestNeeded + (sizeof(world_vertex) * 24));
+					} else if (cluster->vbo[i].size < vboBytestNeeded) {
+						VBO_Free(cluster->vbo[i]);
+						cluster->vbo[i] = VBO_Alloc(vboBytestNeeded + (sizeof(world_vertex) * 24));
+					}
+					if (!cluster->vbo[i].memory) printf("VBO allocation failed\n");
+					memcpy(cluster->vbo[i].memory, vtxData.buf[i], vboBytestNeeded);
+					freeBuffer(vtxData.buf[i]);
+				}
+			}
+			cluster->vertexCount[0] = vtxData.vtxCount[0];
+			cluster->vertexCount[1] = vtxData.vtxCount[1];
+		}
+	}
+}
+
+bool BlockRender_TaskPolygonizeChunk(ChunkWorker_Queue* queue, ChunkWorker_Task task) {
+	BlockRender_PolygonizeChunk(task.world, task.chunk, false);
+	printf("Executing polytask\n");
+	task.chunk->flags &= ~ClusterFlags_VBODirty;
+	return true;
+}
+
 bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk, bool progressive) {
 	// if (chunk->tasksPending > 0) return false;
 
 	int clean = 0;
 
+	printf("Recalculating chunk\n");
+
 	Chunk_RecalcHeightMap(chunk);
 
 	for (int i = 0; i < CHUNK_CLUSTER_COUNT; i++) {
 		Cluster* cluster = &chunk->data[i];
+
+		pendingChunkVtxs vtx = {chunk->x, i, chunk->z, {0, 0}, {NULL, NULL}};
 		if (cluster->flags & ClusterFlags_VBODirty) {
-#define MAX_SIDES (6 * (CHUNK_WIDTH * CHUNK_CLUSTER_HEIGHT * CHUNK_DEPTH / 2))
-			static Side sides[MAX_SIDES];
+			static Side sideBuffers[2][MAX_SIDES];
+			Side* sides = &sideBuffers[0][0];
+
 			int sideCurrent = 0;
+			int sidesCount[2] = {0, 0};  // Pass 0, 1
+
 			int blocksNotAir = 0;
 
 			for (int x = 0; x < CHUNK_WIDTH; x++)
 				for (int z = 0; z < CHUNK_DEPTH; z++) {
 					for (int y = 0; y < CHUNK_CLUSTER_HEIGHT; y++) {
-						if (cluster->blocks[x][y][z] != Block_Air) {
+						Block block = cluster->blocks[x][y][z];
+						if (block != Block_Air) {
 							blocksNotAir++;
 							for (int j = 0; j < Directions_Count; j++) {
 								const int* pos = &DirectionToPosition[j];
 
-								if (fastBlockFetch(world, chunk, cluster, x + pos[0], y + pos[1], z + pos[2]) == Block_Air) {
+								Block sidedBlock = fastBlockFetch(world, chunk, cluster, x + pos[0], y + pos[1], z + pos[2]);
+								if (sidedBlock == Block_Air || !Blocks_IsOpaque(sidedBlock)) {
 									if (!(world->errFlags & World_ErrUnloadedBlockRequested)) {
-										sides[sideCurrent] = (Side){
+										Side s = (Side){
 										    x,
 										    y,
 										    z,
 										    j,
-										    cluster->blocks[x][y][z],
+										    block,
 										    (i * CHUNK_CLUSTER_HEIGHT) + y < fastHeightMapFetch(world, chunk, x + pos[0], z + pos[2])};
 
 										for (int k = 0; k < 4; k++) {
 											const int* aoOffset = aoTable[j][k];
 											if (fastBlockFetch(world, chunk, cluster, x + pos[0] + aoOffset[0],
 													   y + pos[1] + aoOffset[1], z + pos[2] + aoOffset[2]) != Block_Air) {
-												sides[sideCurrent].sideAO |= 1 << (4 + k);
+												s.sideAO |= 1 << (4 + k);
 											}
 										}
-										sideCurrent++;
+										sides[sideCurrent++] = s;
+										sidesCount[!Blocks_IsOpaque(block)]++;
 									}
 								}
 							}
@@ -194,25 +278,29 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk, bool progressive) {
 					}
 				}
 
-			int vboBytestNeeded = sizeof(world_vertex) * 6 * sideCurrent;
-			if (!vboBytestNeeded) {
-				cluster->vertexCount = 0;
+			if (!sideCurrent) {
+				/*cluster->vertexCount[0] = 0;
+				cluster->vertexCount[1] = 0;*/
+				vtx.vtxCount[0] = 0;
+				vtx.vtxCount[1] = 0;
 				cluster->flags &= ~ClusterFlags_VBODirty;
 				if (blocksNotAir == 0) cluster->flags |= ClusterFlags_Empty;
+				vec_push(&pendingChunks, vtx);
 				continue;
 			}
 
-			if (cluster->vbo.memory == NULL || cluster->vbo.size == 0) {
-				cluster->vbo = VBO_Alloc(vboBytestNeeded + (sizeof(world_vertex) * 24));
-			} else if (cluster->vbo.size < vboBytestNeeded) {
-				VBO_Free(cluster->vbo);
-				cluster->vbo = VBO_Alloc(vboBytestNeeded + (sizeof(world_vertex) * 24));
+			for (int k = 0; k < 2; k++) {
+				if (sidesCount[k]) {
+					do {
+						vtx.buf[k] = aquireBuffer();
+						svcSleepThread(120);
+					} while (vtx.buf[k] == NULL);
+				}
 			}
-			if (!cluster->vbo.memory) printf("VBO allocation failed\n");
 
-			int vertexCount = 0;
+			int vertexCount[2] = {0, 0};
 
-			world_vertex* ptr = (world_vertex*)cluster->vbo.memory;
+			world_vertex* vbos[2] = {vtx.buf[0], vtx.buf[1]};
 
 			const int oneDivIconsPerRow = 256 / 8;
 			const int halfTexel = 256 / 128;
@@ -224,6 +312,10 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk, bool progressive) {
 			uint8_t blockUV[2];
 
 			for (int j = 0; j < sideCurrent; j++) {
+				bool blockTransparent = !Blocks_IsOpaque(sides[j].block);
+
+				world_vertex* ptr = vbos[blockTransparent];
+
 				memcpy(ptr, &cube_sides_lut[(sides[j].sideAO & 0xF) * 6], sizeof(world_vertex) * 6);
 
 				Blocks_GetUVs(sides[j].block, (sides[j].sideAO & 0xF), blockUV);
@@ -252,7 +344,7 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk, bool progressive) {
 					if (ao) {
 						ptr[k].yuvb[3] -= 55;
 					}
-					if (sides[j].brightness) {
+					if (sides[j].brightnes) {
 						ptr[k].yuvb[3] -= 90;
 					}
 
@@ -262,8 +354,8 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk, bool progressive) {
 					// printf("%f, %f\n", ptr[k].uv[0], ptr[k].uv[1]);
 				}
 
-				ptr += 6;
-				vertexCount += 6;
+				vbos[blockTransparent] += 6;
+				vertexCount[blockTransparent] += 6;
 			}
 
 			/*{
@@ -272,7 +364,10 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk, bool progressive) {
 				fclose(f);
 			}*/
 
-			cluster->vertexCount = vertexCount;
+			vtx.vtxCount[0] = vertexCount[0];
+			vtx.vtxCount[1] = vertexCount[1];
+
+			vec_push(&pendingChunks, vtx);
 
 			cluster->flags &= ~ClusterFlags_VBODirty;
 
@@ -282,5 +377,8 @@ bool BlockRender_PolygonizeChunk(World* world, Chunk* chunk, bool progressive) {
 		} else
 			clean++;
 	}
+
+	printf("Finished\n");
+
 	return clean == CHUNK_CLUSTER_COUNT;
 }

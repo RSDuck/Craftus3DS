@@ -84,6 +84,8 @@ int main(int argc, char* argv[]) {
 	ChunkWorker_AddHandler(cworker, ChunkWorker_TaskOpenChunk, &SaveManager_LoadChunk, 0);
 	ChunkWorker_AddHandler(cworker, ChunkWorker_TaskSaveChunk, &SaveManager_SaveChunk, 0);
 
+	ChunkWorker_AddHandler(cworker, ChunkWorker_TaskPolygonizeChunk, &BlockRender_TaskPolygonizeChunk, 0);
+
 	Player_Spawn(player, world);
 
 	consoleSelect(&consoleStatus);
@@ -99,17 +101,7 @@ int main(int argc, char* argv[]) {
 		World_Tick(world);
 	}
 
-	for (int x = 1; x < CACHE_SIZE - 1; x++) {
-		for (int z = 1; z < CACHE_SIZE - 1; z++) {
-			if (world->cache[0]->cache[x][z]->flags & ClusterFlags_VBODirty && world->cache[0]->cache[x][z]->worldGenProgress == WorldGenProgress_Decoration)
-				if (BlockRender_PolygonizeChunk(world, world->cache[0]->cache[x][z], false)) {
-					world->cache[0]->cache[x][z]->flags &= ~ClusterFlags_VBODirty;
-				}
-		}
-		printf("Polygonizing chunk row %d\n", x);
-	}
-
-	player->y = (float)World_GetHeight(world, 0, 0) + 0.1f;
+	if (player->y == 0.f) player->y = (float)World_GetHeight(world, 0, 0) + 0.1f;
 
 	u64 time = osGetTime(), tickClock = 0, deltaTime = 0, fpsClock = 0;
 	u32 fps = 0, fpsCounter = 0;

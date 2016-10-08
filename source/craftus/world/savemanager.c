@@ -165,22 +165,25 @@ static void loadManifest() {
 
 	bool flying = mpack_node_bool(mpack_node_map_cstr(playerNode, "flying"));
 
+	workingPlayer->x = pX;
+	workingPlayer->y = pY;
+	workingPlayer->z = pZ;
+
+	printf("Set player position\n");
+
+	workingPlayer->yaw = yaw;
+	workingPlayer->pitch = pitch;
+
+	workingPlayer->flying = flying;
+
 	if (mpack_tree_destroy(&tree) != mpack_ok) {
 		saveManifest();
 		printf("Couldn't read manifest, creating a new one\n");
 	} else {
-		printf("Sucessfull read world manifest!\n");
 		workingWorld->genConfig.seed = seed;
 		workingWorld->genConfig.type = type;
 
-		workingPlayer->x = pX;
-		workingPlayer->y = pY;
-		workingPlayer->z = pZ;
-
-		workingPlayer->yaw = yaw;
-		workingPlayer->pitch = pitch;
-
-		workingPlayer->flying = flying;
+		printf("Sucessfull read world manifest!\n");
 	}
 
 	printf("Gone through\n");
@@ -311,13 +314,13 @@ void SaveManager_Init(World* world, Player* player) {
 		printf("Error, couldn't open file\n");
 	}
 
+	loadManifest();
 	loadIndex();
 
 	printf("Initialized save manager\n");
 }
 
 void SaveManager_Free() {
-	SaveManager_Flush();
 	saveManifest();
 
 	saveIndex();
@@ -338,7 +341,10 @@ bool SaveManager_SaveChunk(ChunkWorker_Queue* queue, ChunkWorker_Task task) {
 	printf("Saving chunk(%d, %d)...\n", task.chunk->x, task.chunk->z);
 	vec_foreach (&savedChunks, chunk, i) {
 		if ((task.chunk->x == chunk.x && task.chunk->z == chunk.z) || !chunk.inUse) {
-			if (chunk.editCounter == task.chunk->editsCounter) return true;
+			if (chunk.editCounter == task.chunk->editsCounter) {
+				printf("Skipped\n");
+				return true;
+			}
 
 			if (chunk.size >= newChunk.size) {
 				fseek(chunkFile, chunk.filePosition, SEEK_SET);
@@ -381,6 +387,7 @@ bool SaveManager_SaveChunk(ChunkWorker_Queue* queue, ChunkWorker_Task task) {
 	return true;
 }
 
+extern ChunkWorker* cworker;
 bool SaveManager_LoadChunk(ChunkWorker_Queue* queue, ChunkWorker_Task task) {
 	chunkEntry chunk;
 	int i;
@@ -403,6 +410,7 @@ bool SaveManager_LoadChunk(ChunkWorker_Queue* queue, ChunkWorker_Task task) {
 			deserializeChunk(savedChunk, task.chunk);
 
 			if (task.chunk->worldGenProgress == WorldGenProgress_NotLoaded) task.chunk->worldGenProgress = WorldGenProgress_Empty;
+
 			return true;
 		}
 	}

@@ -11,6 +11,11 @@
 #define COBBLEP PREFIX "cobblestone.png"
 #define SANDP PREFIX "sand.png"
 #define STONEBRICKP PREFIX "stonebrick.png"
+#define LOGSIDEP PREFIX "log_oak.png"
+#define LOGTOPP PREFIX "log_oak_top.png"
+#define LEAVESP PREFIX "leaves_oak1.png"
+#define PLANKSP PREFIX "planks_oak.png"
+#define GLASSP PREFIX "glass.png"
 
 static Texture_MapIcon grassTopTex;
 static Texture_MapIcon grassSideTex;
@@ -19,9 +24,14 @@ static Texture_MapIcon dirtTex;
 static Texture_MapIcon cobbleTex;
 static Texture_MapIcon sandTex;
 static Texture_MapIcon stonebrickTex;
+static Texture_MapIcon logSideTex;
+static Texture_MapIcon logTopTex;
+static Texture_MapIcon leavesOakTex;
+static Texture_MapIcon planksTex;
+static Texture_MapIcon glassTex;
 
 void Blocks_InitTexture(Texture_Map* map) {
-	Texture_MapInit(map, STONEP ";" GRASSTOPP ";" GRASSSIDEP ";" DIRTP ";" COBBLEP ";" SANDP ";" STONEBRICKP);
+	Texture_MapInit(map, STONEP ";" GRASSTOPP ";" GRASSSIDEP ";" DIRTP ";" COBBLEP ";" SANDP ";" STONEBRICKP ";" LOGSIDEP ";" LOGTOPP ";" LEAVESP ";" PLANKSP ";" GLASSP);
 	grassTopTex = Texture_MapGetIcon(map, GRASSTOPP);
 	grassSideTex = Texture_MapGetIcon(map, GRASSSIDEP);
 	stoneTex = Texture_MapGetIcon(map, STONEP);
@@ -29,9 +39,25 @@ void Blocks_InitTexture(Texture_Map* map) {
 	cobbleTex = Texture_MapGetIcon(map, COBBLEP);
 	sandTex = Texture_MapGetIcon(map, SANDP);
 	stonebrickTex = Texture_MapGetIcon(map, STONEBRICKP);
+	logSideTex = Texture_MapGetIcon(map, LOGSIDEP);
+	logTopTex = Texture_MapGetIcon(map, LOGTOPP);
+	leavesOakTex = Texture_MapGetIcon(map, LEAVESP);
+	planksTex = Texture_MapGetIcon(map, PLANKSP);
+	glassTex = Texture_MapGetIcon(map, GLASSP);
 }
 
 Block_Shape Blocks_GetShape(Block block) { return BlockShape_Cube; }
+
+bool Blocks_IsOpaque(Block block) {
+	switch (block) {
+		case Block_Glass:
+			return false;
+		case Block_Leaves:
+			return false;
+		default:
+			return true;
+	}
+}
 
 void Blocks_GetUVs(Block block, Direction side, uint8_t* out) {
 	switch (block) {
@@ -73,6 +99,30 @@ void Blocks_GetUVs(Block block, Direction side, uint8_t* out) {
 			out[0] = stonebrickTex.u;
 			out[1] = stonebrickTex.v;
 			break;
+		case Block_Log:
+			switch (side) {
+				case Direction_Top:
+					out[0] = logTopTex.u;
+					out[1] = logTopTex.v;
+					break;
+				default:
+					out[0] = logSideTex.u;
+					out[1] = logSideTex.v;
+					break;
+			}
+			break;
+		case Block_Glass:
+			out[0] = glassTex.u;
+			out[1] = glassTex.v;
+			break;
+		case Block_Leaves:
+			out[0] = leavesOakTex.u;
+			out[1] = leavesOakTex.v;
+			break;
+		case Block_Planks:
+			out[0] = planksTex.u;
+			out[1] = planksTex.v;
+			break;
 	}
 }
 
@@ -92,12 +142,20 @@ const char* Blocks_GetNameStr(Block block) {
 			return "Sand";
 		case Block_StoneBrick:
 			return "Stonebrick";
-		case Blocks_Count:
+		case Block_Glass:
+			return "Glass";
+		case Block_Leaves:
+			return "Oak Leaves";
+		case Block_Log:
+			return "Oak Log";
+		case Block_Planks:
+			return "Oak Planks";
+		default:
 			return "Report an error if you see this text";
 	}
 }
 
-void Blocks_RandomTick(void* w, uint32_t x, uint32_t y, uint32_t z) {
+void Blocks_RandomTick(void* w, int x, int y, int z) {
 	World* world = (World*)w;
 	switch (World_GetBlock(world, x, y, z)) {
 		case Block_Dirt:

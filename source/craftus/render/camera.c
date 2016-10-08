@@ -12,6 +12,8 @@ void Camera_Init(Camera* cam) {
 void Camera_Update(Camera* cam, Player* player, float iod) {
 	Mtx_PerspStereoTilt(&cam->projection, cam->fov, ((400.f / 2.f) / (240.f / 2.f)), cam->near, cam->far, iod, 2.f, false);
 
+	Mtx_Scale(&cam->projection, 1.5f, 1.5f, 1.5f);
+
 	Mtx_Identity(&cam->view);
 	Mtx_RotateX(&cam->view, -player->pitch, true);
 	Mtx_RotateY(&cam->view, -player->yaw, true);
