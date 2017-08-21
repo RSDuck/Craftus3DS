@@ -1,4 +1,4 @@
-Thre is a rewritten which is in active developement: https://github.com/RSDuck/craftus_reloaded
+There is a rewritten which is in active developement: https://github.com/RSDuck/craftus_reloaded
 
 # Craftus
 Craftus in a Minecraft clone for Nintendo 3DS(and not a continuation of 3DSCraft by smea). 
